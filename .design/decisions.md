@@ -50,7 +50,7 @@ my-worker/
 ├── python_modules/     # full Pyodide install used by dev, ignored
 └── .wynd/              # ignored
     ├── synced          # sync token
-    ├── pyodide-venv/   # target install cache, kept between runs
+    ├── site-packages/  # install in progress, moved to python_modules/ on success
     └── build/          # pruned tree for upload, wiped when the next upload starts
         ├── wrangler.jsonc
         ├── src/
@@ -75,7 +75,7 @@ Wrangler resolves relative paths from the directory of the config file. The stag
 | --- | --- |
 | `wynd sync` | Resolves and installs the target packages |
 | `wynd types` | Generates `src/env.py` (see [Typed bindings](#typed-bindings)) |
-| `wynd dev` | Syncs, then runs `wrangler dev` on the full tree from the project root |
+| `wynd dev` | Syncs, then runs `wrangler dev` on the full tree from the working directory |
 | `wynd deploy [--dry-run]` | Syncs, prunes into `.wynd/build/` and runs Wrangler with the staged config. `--dry-run` reports bytes before and after pruning. |
 | `wynd versions upload`, `wynd preview` | Same flow as deploy, because both upload code |
 | Anything else | Passed straight to Wrangler, without sync |

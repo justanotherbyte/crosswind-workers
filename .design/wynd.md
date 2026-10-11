@@ -83,7 +83,7 @@ Each module below has one job and a small interface. The shaker, typegen and tar
 
 **SDK selector.** It reads the project's direct dependencies and returns the chosen SDK distribution. Neither declared, or both declared directly, is an error. The unchosen SDK is passed to uv's `--excludes`, so a library that depends on it resolves without it.
 
-**Resolver and installer.** It compiles the project's dependencies for the target interpreter and index with `--no-build` (unless `allow-build` is set) into `pylock.toml`, installs the lock into `.wynd/pyodide-venv/`, and replaces `python_modules/` with a full copy of that environment's site-packages, minus uv's `_virtualenv.pth` and `_virtualenv.py`. Any uv failure stops the command before Wrangler runs. The resolver and installer follow pywrangler's resolve and sync flow, except that the SDK comes from the selector instead of being injected.
+**Resolver and installer.** It compiles the project's dependencies for the target interpreter and index with `--no-build` (unless `allow-build` is set) into `pylock.toml`, installs the lock with `uv pip install --target .wynd/site-packages --python <target interpreter>`, and moves that directory into place as `python_modules/` only after uv succeeds, so a failed install leaves the previous tree. Any uv failure stops the command before Wrangler runs. The resolver and installer follow pywrangler's resolve and sync flow, with two differences. The SDK comes from the selector instead of being injected. The install uses `--target` instead of pywrangler's Pyodide venv, because uv 0.12.19 ignores a Pyodide venv's interpreter named through `VIRTUAL_ENV` ("system interpreter not explicitly requested"), and with `--python <venv>` it installs into `/`, the prefix Pyodide reports. `--target` also writes no `_virtualenv` hook files.
 
 **Sync token.** A SHA-256 over the contents of `pyproject.toml` and `pylock.toml`, the resolved target (Python version, date, flags) and the Wynd version, stored in `.wynd/synced`. Sync runs when the stored hash differs or `python_modules/` is missing.
 
@@ -110,7 +110,7 @@ class Env(Protocol):
     API_TOKEN: str
 ```
 
-**Host check.** It reads the Python version of the project's `.venv` and prints one warning when its minor version differs from the target's. It never creates or modifies `.venv`. It also runs `uv --version` and stops the command when uv is missing from PATH or older than 0.12.3.
+**Host check.** It reads the Python version of the project's `.venv` and prints one warning when its minor version differs from the target's. It never creates or modifies `.venv`. The uv check lives in the installer, the module that runs uv: before any uv work it runs `uv --version` and stops the command when uv is missing from PATH or older than 0.12.3.
 
 **Wrangler runner.** It runs `npx --yes wrangler@<pinned>` with the given arguments and working directory, inherits the environment, and returns the exit code. A missing `npx` is an error that names Node.js as a requirement.
 
@@ -122,7 +122,7 @@ class Env(Protocol):
 | --- | --- |
 | `sync` | load project, select target and SDK, resolve and install if the token is stale |
 | `types [--check]` | load project, render `env.py`, write it or compare |
-| `dev` | sync, regenerate `env.py` if its rendered text differs, host check, run `wrangler dev` from the project root |
+| `dev` | sync, regenerate `env.py` if its rendered text differs, host check, run `wrangler dev` with the original arguments from the working directory, so `-c` and config discovery mean the same to Wynd and Wrangler |
 | `deploy`, `versions upload`, `preview` | sync, regenerate `env.py` if its rendered text differs, shake, stage, run Wrangler with `--config` set to the staged config and the user's other arguments |
 | anything else | run Wrangler with the original arguments |
 
@@ -200,7 +200,7 @@ The design review settled these. Each line points at its section in the decision
 - [First Wrangler release supporting 2026-09-08](research/wrangler-release-for-2026-09-08.md): wrangler 4.129.0 (workerd 1.20260903.1) is the first to accept 2026-09-08, so Wynd pins it. The latest release is 4.149.0.
 - [Wrangler config discovery and environment overrides](research/wrangler-config-discovery.md): `python_modules/` sits beside the config file, environments can override the compatibility date and flags, and the config search walks parent directories one file name at a time.
 - [Absolute paths in staged config](research/absolute-paths-in-staged-config.md): wrangler 4.129.0 accepts absolute paths for every rewritten key. `main` and `base_dir` stay relative, `previews` and `migrations_pattern` join the rewrite list, and the blob keys drop out.
-- [Removing a dependency with a uv override](research/removing-a-dependency-with-uv.md): uv's `--excludes` drops the unchosen SDK from the Pyodide resolution, and the installer also skips uv's `_virtualenv` hook files.
+- [Removing a dependency with a uv override](research/removing-a-dependency-with-uv.md): uv's `--excludes` drops the unchosen SDK from the Pyodide resolution, and pywrangler's venv install copies uv's `_virtualenv` hook files, which Wynd's `--target` install never writes.
 - [Wynd runtime dependencies](decisions.md#runtime-dependencies): `argparse` for the CLI and json-with-comments for JSONC, Wynd's only dependency. uv 0.12.3 or later must be on PATH, because users run Wynd with `uvx wynd`. The staged config is always written as `wrangler.json`.
 - [Shaker edge rules](decisions.md#tree-shaker): `TYPE_CHECKING` imports skipped, optional and function-level imports followed, unresolved names recorded without failing, `.dist-info` dropped with its distribution, and literal `__all__` followed for star imports.
 - [Typed binding coverage](crosswind-workers.md#decisions-so-far): decided in the crosswind-workers map. It fixes typegen's section-to-class table.
