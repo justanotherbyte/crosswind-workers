@@ -27,7 +27,7 @@ crosswind-workers is a from-scratch SDK with the same import name, the same publ
 2. As a Worker developer, I want workerd to route requests to my `WorkerEntrypoint` subclass, so that a class with an async `fetch` is all I need.
 3. As a Worker developer, I want my `DurableObject` subclasses constructed with `ctx` and `env` and routed by workerd, so that Durable Objects work like the stock SDK's.
 4. As a Worker developer, I want my `WorkflowEntrypoint` subclasses and their steps to run without any JavaScript helper, so that Workflows work from a Python-only wheel.
-5. As a Worker developer on a compatibility date before 2025-08-14, I want to write `fetch`, `scheduled`, `queue` and `alarm`, so that I never need to know workerd calls `on_fetch` on old dates.
+5. As a Worker developer on a compatibility date before 2025-08-14, I want to write `fetch`, `connect`, `alarm` and the `webSocket*` handlers, so that I never need to know workerd calls `on_fetch` on old dates.
 6. As a Worker developer, I want `await request.json()`, `await request.text()` and `await request.bytes()` to return Python values, so that I never handle a `JsProxy` for a request body.
 7. As a Worker developer, I want to return `Response("text")`, `Response(b"bytes", status=201, headers={...})` or `Response.json(data)`, so that I build responses from Python values.
 8. As a Worker developer, I want `class Default(WorkerEntrypoint[Env])` to give `self.env` my generated `Env` type, so that my editor checks binding names and methods.
@@ -68,7 +68,7 @@ crosswind-workers is a from-scratch SDK with the same import name, the same publ
 
 ### Modules
 
-**Entrypoints.** `WorkerEntrypoint`, `DurableObject` and `WorkflowEntrypoint`, all generic over an optional `Env` type. `__init_subclass__` calls `super()`, wraps the methods workerd calls with raw JS proxies (`connect`, Durable Object `alarm`, the `webSocket*` handlers and Workflow `run`) so they receive Python wrappers, and defines `on_fetch`, `on_scheduled`, `on_queue` and `on_alarm` as aliases for the short names. The constructor wraps `ctx` and `env` before user code sees them. Nothing in the SDK resolves annotations on `Env` or user classes at runtime, because the generated `Env` refers to classes that exist only for type checkers. Workers' own exceptions such as `DurableObjectAbort`, and the `handler` decorator, keep their stock meaning.
+**Entrypoints.** `WorkerEntrypoint`, `DurableObject` and `WorkflowEntrypoint`, all generic over an optional `Env` type. `__init_subclass__` calls `super()`, wraps the methods workerd calls with raw JS proxies (`connect`, Durable Object `alarm`, the `webSocket*` handlers and Workflow `run`) so they receive Python wrappers, and adds `on_<name>` aliases for the handlers workerd renames on old dates: `fetch` and `connect`, plus `alarm` and `webSocket*` on Durable Objects. The constructor wraps `ctx` and `env` before user code sees them. Nothing in the SDK resolves annotations on `Env` or user classes at runtime, because the generated `Env` refers to classes that exist only for type checkers. Workers' own exceptions such as `DurableObjectAbort`, and the `handler` decorator, keep their stock meaning.
 
 **Boundary conversion.** `python_from_rpc` and `python_to_rpc`, which workerd calls on every class-method argument and return value. Their conversion rules match the stock SDK's exactly. `python_to_rpc` on a crosswind `Response` returns its `js_object`, which is the JS `Response` workerd requires from `fetch`.
 
@@ -198,7 +198,7 @@ None.
 ### Not yet specified
 
 - Which of the stock SDK's entropy patches are still needed. numpy 2.2.5 deployed and reseeded per isolate without them, and the other patched packages are untested.
-- The exact signatures workerd calls `scheduled`, `queue` and the other non-fetch handlers with. On a 2025-06-01 date production called `on_fetch` but `scheduled`, so the `on_*` rename doesn't apply to every handler. A cron handler declared as `scheduled(self, controller, env=None, ctx=None)` never wrote its result, and the cause is unknown.
+- The exact signatures workerd calls `scheduled`, `queue` and the other non-fetch handlers with. On a 2025-06-01 date production called `on_fetch` but `scheduled`, which matches workerd's source: only `fetch`, `connect`, `alarm` and `webSocket*` are renamed. A cron handler declared as `scheduled(self, controller, env=None, ctx=None)` never wrote its result, and the cause is unknown.
 - How JS exceptions map to Python exception classes beyond what the stock SDK does today.
 - Streaming request and response bodies, and how they interact with lazy body reads.
 - The WebSocket API shape for Durable Objects beyond wrapping the handlers.

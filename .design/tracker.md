@@ -47,7 +47,8 @@ Done when the checkpoint passes in both packages, which still contain no real co
 ## Phase 1: first request
 
 - [x] Wynd 1. Passthrough: the dispatcher, the runner and the pin. `wynd whoami` behaves like `wrangler whoami`.
-- [ ] crosswind 1. Tracer: the five names workerd imports, a minimal `Request` and `Response`, and the `on_*` aliases. It runs first under plain `wrangler dev` with the SDK copied into the fixture.
+- [x] crosswind 1. Tracer: the five names workerd imports, a minimal `Request` and `Response`, and the `on_*` aliases. It runs first under plain `wrangler dev` with the SDK copied into the fixture.
+  - Result: `uv run pytest -m e2e` answers on 3.12 (2025-06-01, legacy `on_fetch`), 3.13 and 3.14. The alias set follows workerd's source, not the old spec list (see [decisions](decisions.md#contract-with-workerd)).
 - [ ] Wynd 2. Dev on the full tree: the project loader, target table, SDK selector, resolver, installer, sync token and host check. The tracer then moves to `wynd dev`.
 - [ ] Spike. A 20-line Worker whose step callback returns a rejecting thenable with a `NonRetryableError`-named error. Does the Workflows engine stop retrying?
 
