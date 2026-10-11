@@ -1,6 +1,6 @@
 # Workflows without the JavaScript helper
 
-Researched 2026-10-11. Ticket from `.design/crosswind-workers.md`. Nothing here was run in workerd. Every claim comes from reading source.
+Researched 2026-10-11. Ticket from `.design/crosswind-workers.md`. Every claim comes from reading source. On 2026-10-12 the Phase 1 spike confirmed section 2's thenable in the local Workflows engine on all three targets ([tracker](../tracker.md#phase-1-first-request)). The rest is still unrun.
 
 Sources and short names:
 - `sdk/` is workers-py at `cb2db3c9`, `packages/runtime-sdk/src/workers/`.
@@ -16,7 +16,7 @@ Everything else is already Python. `sleep`, `sleep_until` and `wait_for_event` a
 
 Why JS: the engine treats a step error as non-retryable only if `error.name === "NonRetryableError"` or `error.message.startsWith("NonRetryableError")` (`ws/context.ts:936-937`). A Python exception reaches JS as a `PythonError` whose message is the traceback (commit `1c1980a` message). Pyodide builds that error in `wrap_exception` (`py28/error_handling.c:147-188`). This code always makes a new `PythonError`, even for a re-raised `JsException`, because it never unwraps the original JS error (`py26/error_handling.c:192-218`). A coroutine that raises is rejected through the same `wrap_exception` (`py28/pyproxy.c:1161-1167`). So no `raise` in Python can produce a JS error with a custom `name`.
 
-## 2. Doing it from Python (medium-high confidence, unverified at runtime)
+## 2. Doing it from Python (confirmed in the local engine; production untested)
 
 A Python coroutine can still settle with an arbitrary JS error. When the coroutine returns, Pyodide calls `python2js(result)` and passes it to the native `resolve` of a real `Promise` (`py28/pyproxy.c:1148-1151`, `py28/pyproxy.ts:2554-2557`). `python2js` of a `JsProxy` returns the underlying JS object. A native `resolve` given a thenable adopts that thenable's state ([ECMA-262 Promise Resolve Functions](https://tc39.es/ecma262/#sec-promise-resolve-functions)). So a step callback that *returns* a thenable whose `then` calls `reject(err)` makes the engine see `err` itself.
 

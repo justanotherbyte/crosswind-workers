@@ -51,7 +51,8 @@ Done when the checkpoint passes in both packages, which still contain no real co
   - Result: `uv run pytest -m e2e` answers on 3.12 (2025-06-01, legacy `on_fetch`), 3.13 and 3.14. The alias set follows workerd's source, not the old spec list (see [decisions](decisions.md#contract-with-workerd)).
 - [x] Wynd 2. Dev on the full tree: the project loader, target table, SDK selector, resolver, installer, sync token and host check. The tracer then moves to `wynd dev`.
   - Result: `uv run pytest -m e2e` passes in both packages, with a stock-SDK fixture in Wynd and the crosswind tracer, built from its local path, on 3.12 (2025-06-01), 3.13 and 3.14. The installer uses `uv pip install --target` instead of a Pyodide venv, and `dev` runs Wrangler from the working directory (see [wynd.md](wynd.md#modules)).
-- [ ] Spike. A 20-line Worker whose step callback returns a rejecting thenable with a `NonRetryableError`-named error. Does the Workflows engine stop retrying?
+- [x] Spike. A 20-line Worker whose step callback returns a rejecting thenable with a `NonRetryableError`-named error. Does the Workflows engine stop retrying?
+  - Result: yes, in the local engine on all three targets. With two retries allowed, the thenable named `NonRetryableError` ran once, and the same thenable named `OtherError` ran three times. `run` receives the step error as `Error: NonRetryableError: stop`. `uv run pytest -m e2e -k thenable` in crosswind reproduces all of it. The pure-Python wheel decision stands. Still open for crosswind 9: production's engine, attempt counts across engine replays (the spike counts in a module global), and a `NonRetryableError` that escapes `run`.
 
 Done when a crosswind Worker answers HTTP under `wynd dev` on 3.12, 3.13 and 3.14, including a date before 2025-08-14. If the spike fails, revisit the pure-Python wheel decision now, before any crosswind design rests on it.
 
