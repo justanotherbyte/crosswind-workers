@@ -58,7 +58,8 @@ Done when a crosswind Worker answers HTTP under `wynd dev` on 3.12, 3.13 and 3.1
 
 ## Phase 2: an SDK you can write Workers with
 
-- [ ] crosswind 2. Boundary conversion
+- [x] crosswind 2. Boundary conversion
+  - Result: `python_from_rpc` and `python_to_rpc` follow the stock rules. `uv run pytest -m e2e -k rpc_e2e` round-trips the stock RPC test's values between two entrypoints on all three targets. The check for unsendable types walks iterables as stock does but skips one-shot iterators, so a generator is no longer consumed. `Blob`, `FormData` and `File` pass through as JS values until crosswind 3. As in the stock SDK, a JS `Error` that crosses twice reads `Error: Error: message`.
 - [ ] crosswind 3. HTTP types
 - [ ] crosswind 4. Env and bindings
 - [ ] crosswind 5. Durable Objects and context
