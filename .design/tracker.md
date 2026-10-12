@@ -33,7 +33,7 @@ uvx ty check
 
 A slice is done when all four pass and its done-condition from the spec holds.
 
-An e2e test that runs on one target uses 3.12, with a compatibility date before 2025-08-14, such as 2025-06-01. 3.12 is the oldest target, and a feature that works there is assumed to work on 3.13 and 3.14.
+An e2e test that runs on one target uses 3.12, with a compatibility date before 2025-08-14, such as 2025-06-01. 3.12 is the oldest target, and a feature that works there is assumed to work on 3.13 and 3.14. The exception is package resolution. Each target resolves against its own Pyodide package index, so a package that resolves on 3.12 can be missing or at a different version on 3.14. Tests that depend on which packages resolve, such as the Wynd resolver's and Phase 5's numpy and pydantic fixtures, run on every target.
 
 ## Phase 0: setup
 
