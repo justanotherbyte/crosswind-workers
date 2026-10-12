@@ -116,13 +116,14 @@ From the roots, the shaker follows imports across distributions. It then applies
 
 - It drops unreachable modules and whole distributions, tests, docs, `__pycache__`, `.pyi` files and `py.typed` markers.
 - It keeps `.dist-info` metadata, because libraries call `importlib.metadata.version()` at runtime. A distribution whose modules were all dropped loses its `.dist-info` too, so no library sees it as installed and then hits `ImportError`.
-- It keeps `.so` extensions built for Pyodide. A `.so` built for the host fails the build.
-- It keeps every non-Python file in a package directory when any module of that package is kept. This rule keeps templates, data files and the stock SDK's `workers/workflows.js`.
+- It keeps `.so` extensions built for Pyodide. Any other kept `.so`, such as one built for the host, fails the build.
+- It keeps every non-Python file under a top-level package when any module of that package is kept. This rule keeps templates, data files, tzdata's zone files and the stock SDK's `workers/workflows.js`.
 
 The import graph follows these edge rules:
 
 - Imports under `if TYPE_CHECKING:` or `if typing.TYPE_CHECKING:` are skipped. Other spellings are followed.
 - Imports inside `try`/`except ImportError` and inside function bodies are followed like any other import.
+- An `import_module` or `__import__` call with a computed name that starts with literal text follows every module that start allows. pydantic loads most of its public names this way, with `import_module(f".{name}", package=...)`, so without this rule a pruned pydantic fails at import.
 - A name with no vendored file is recorded as unresolved in the shake plan and doesn't fail the build. That covers the stdlib, `js`, `pyodide`, `_cloudflare` and optional dependencies that aren't installed.
 - `from pkg import *` follows `pkg` and every submodule named in its literal `__all__`. `from pkg import name` also follows `pkg.name` when that is a module.
 
