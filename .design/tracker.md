@@ -33,6 +33,8 @@ uvx ty check
 
 A slice is done when all four pass and its done-condition from the spec holds.
 
+An e2e test that runs on one target uses 3.12, with a compatibility date before 2025-08-14, such as 2025-06-01. 3.12 is the oldest target, and a feature that works there is assumed to work on 3.13 and 3.14.
+
 ## Phase 0: setup
 
 - [x] `git init` in `helm/`
@@ -69,7 +71,7 @@ Done when a crosswind Worker answers HTTP under `wynd dev` on 3.12, 3.13 and 3.1
 - [x] crosswind 6. Module globals
   - Result: `workers.env` (a fresh wrapper per access, as in stock), `wait_until`, `waitUntil`, `import_from_javascript`, `patch_env` (raises `NotImplementedError` naming the 2026-06-30 removal) and `handler` are exported, with `workers.utils` and `workers.entrypoints` as their stock import paths. `uv run pytest -m e2e -k globals_e2e` covers them in workerd on all three targets. Findings: the stock way, handing a coroutine to workerd's module-level `waitUntil`, never ran it, so `wait_until` passes a promise that follows a task, as `ctx.wait_until` does. No module-level path, stock or crosswind, through the preloaded module or `doAnImport`, keeps a Python Worker alive after the response under `wrangler dev`. `ctx.wait_until` and stock's patched `ctx.waitUntil` do, and the e2e test now checks a KV write that lands after the response. Making the module-level function work would need crosswind to track the current request's `ctx`, which is not built. `import_from_javascript("node:buffer")` works at top level and in handlers on 3.13 and 3.14. On 3.12 only `cloudflare:workers` and `cloudflare:sockets` import, with stock's "until the next python runtime version" error.
 - [x] Wynd 3. SDK exclusion with `--excludes`
-  - Result: sync writes the SDK the project did not choose to `.wynd/excludes.txt` and passes it to `uv pip compile --excludes`. `uv run pytest -m e2e -k drops` in Wynd resolves a project that declares crosswind-workers plus a local library depending on `workers-runtime-sdk`, on 3.13 only. The lock holds only `crosswind-workers` and the library, and `python_modules/` has no stock SDK. Without the flag, the same test fails with `workers-runtime-sdk` in the lock.
+  - Result: sync writes the SDK the project did not choose to `.wynd/excludes.txt` and passes it to `uv pip compile --excludes`. `uv run pytest -m e2e -k drops` in Wynd resolves a project that declares crosswind-workers plus a local library depending on `workers-runtime-sdk`, on 3.12 (2025-06-01) only. The lock holds only `crosswind-workers` and the library, and `python_modules/` has no stock SDK. Without the flag, the same test fails with `workers-runtime-sdk` in the lock.
 
 Done when a fixture Worker that uses KV, D1, R2, a Durable Object and RPC between entrypoints runs under `wynd dev`, and `workers.bindings` exists with its final class names.
 
