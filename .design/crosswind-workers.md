@@ -155,7 +155,7 @@ Each slice ends with a Worker that runs. Seam 2 tests are added in the same slic
 3. **HTTP types.** Full `Request`, `Response`, `FetchResponse`, headers, `fetch`, `Blob`, `File` and `FormData`.
 4. **Env and bindings.** The `Env` wrapper, typed binding classes, the passthrough wrapper, and `DurableObjectNamespace[T]`.
 5. **Durable Objects and context.** Context wrappers, storage, `alarm` and WebSocket wrapping, and `DurableObjectAbort`.
-6. **Module globals.** `env`, `wait_until`, `waitUntil`, `import_from_javascript` and `patch_env`.
+6. **Module globals.** `env`, `wait_until`, `waitUntil`, `import_from_javascript`, `patch_env` and the stock `handler` decorator.
 7. **Entropy patches.** Port the patches and the `.pth` hook. Done when a fixture importing numpy and pydantic at the top level starts under `wynd dev` on 3.13 and 3.14. numpy 2.2.5 deployed and seeded itself per isolate without the patches in production, so the slice also records which patched packages still fail without them.
 8. **Adapters.** `asgi` and `wsgi`. Done when FastAPI and Flask fixture Workers answer requests.
 9. **Workflows.** Pure-Python steps, including the thenable for `NonRetryableError`. Done when the stock SDK's workerd Workflow tests pass unchanged against crosswind.

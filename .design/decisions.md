@@ -185,7 +185,7 @@ v1 matches the stock SDK's full `__all__`:
 - module-level `env` and `wait_until`
 - `import_from_javascript`
 
-Workflows are implemented in pure Python, so the wheel contains only Python. Module-level `on_fetch` style handlers are planned for after v1.
+Workflows are implemented in pure Python, so the wheel contains only Python. Module-level `on_fetch` style handlers are planned for after v1. The stock `handler` decorator for them is exported now, with its stock behavior, because it is in the stock `__all__`.
 
 ### Contract with workerd
 
