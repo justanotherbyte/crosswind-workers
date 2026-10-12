@@ -168,7 +168,7 @@ v1 has typed classes for these config sections:
 | `workflows` | `Workflow` |
 | text `vars` and secrets | `str` |
 
-Every other binding is a `Binding`, a loosely typed passthrough wrapper. That covers Workers AI, Vectorize, Analytics Engine, Images, rate limiting, Hyperdrive, version metadata and any section Wynd doesn't recognize, so a new Cloudflare product doesn't break `wynd types`. A JSON var such as `"FLAGS": {"beta": true}` arrives as a Python value and is typed from its literal value, so code reads `FLAGS["beta"]` where the stock SDK allowed `FLAGS.beta`.
+Every other binding is a `Binding`, a loosely typed passthrough wrapper. That covers Workers AI, Vectorize, Analytics Engine, Images, rate limiting, Hyperdrive, version metadata and any section Wynd doesn't recognize, so a new Cloudflare product doesn't break `wynd types`. A JSON var such as `"FLAGS": {"beta": true}` arrives as a Python value and is typed from its literal value, so code reads `FLAGS["beta"]` where the stock SDK allowed `FLAGS.beta`. The env wrapper can't tell a JSON object from another plain-object binding, so version metadata also arrives as a dict whose keys read as attributes, and typegen types it that way, not as `Binding`. A JS value a binding returns that conversion leaves as JS comes back as a `Binding`; the stock SDK wrapped it in the parent's class.
 
 Python typing cannot express a Durable Object RPC stub the way TypeScript's `DurableObjectStub<T>` does. `get_by_name` is typed as returning the class itself, so the checker catches wrong method names and argument types but not calls to sync methods through the stub.
 
@@ -197,7 +197,7 @@ Evidence comes from workerd at commit `d08010b` (`src/pyodide/internal/introspec
 
 ### Compatibility with the stock SDK
 
-The stock SDK's behavior is the minimum crosswind supports. Every stock name and call signature works. camelCase JS calls on `ctx`, `env` and binding wrappers pass through to the JS object. Typed snake_case methods and optional generics sit on top, so `ctx.storage.delete_all()` and `ctx.storage.deleteAll()` both work, and so do `class X(DurableObject)` and `class X(DurableObject[Env])`. `__init_subclass__` calls `super()`, so `Generic` works in either base order.
+The stock SDK's behavior is the minimum crosswind supports. Every stock name and call signature works. camelCase JS calls on `ctx`, `env` and binding wrappers pass through to the JS object. Typed snake_case methods and optional generics sit on top, so `ctx.storage.delete_all()` and `ctx.storage.deleteAll()` both work, and so do `class X(DurableObject)` and `class X(DurableObject[Env])`. `__init_subclass__` calls `super()`, and the entrypoints are generic only to type checkers (a `TYPE_CHECKING` base; at runtime `DurableObject[Env]` returns the class), so `Generic` runs in either base order. A class that is generic at runtime can't follow `Generic[S]` in a base list, because Python reports an inconsistent MRO. Type checkers see `DurableObject` as generic and report the same error for `Generic` first, so typed code puts `Generic` last.
 
 The API is async-only, which avoids 3.12's missing `run_sync`.
 

@@ -74,6 +74,8 @@ crosswind-workers is a from-scratch SDK with the same import name, the same publ
 
 **HTTP types.** `Request`, `Response`, `FetchResponse`, `fetch`, headers handling, `Blob`, `File`, `FormData` and the body and keyword-argument types the stock SDK exports. Bodies are read lazily through async methods. Constructors accept either Python values or a JS object.
 
+**RPC arguments.** JS RPC carries positional arguments only. Pyodide turns Python keywords into one trailing JS object, so `stub.increment(by=2)` reaches the Durable Object as `increment({"by": 2})`, as in the stock SDK. Type checkers accept the keyword call, because a stub is typed as its class, so calls through stubs must be positional. Binding methods are unaffected: their typed methods build the options object.
+
 **Bindings.** `workers.bindings` holds one typed class per covered binding type, plus a generic passthrough wrapper for the rest. The `Env` wrapper decides which class wraps each binding by its JS constructor name, as the stock SDK does. `DurableObjectNamespace[T]` returns stubs typed as `T`. Every binding class has typed methods written by hand, each with an explicit signature and its own conversions. A name the class doesn't define is a passthrough to the JS object under its exact JS name, using the stock conversion rules. There is no automatic snake_case-to-camelCase translation. A typed method always wins over passthrough. Typed methods take snake_case keywords (`expiration_ttl=60`) and forward any keyword they don't recognize into the JS options object unchanged, so stock calls such as `kv.put("k", "v", expirationTtl=60)` keep working. Every binding class exposes `js_object`. v1 has typed classes for KV, D1, R2, Queue producers, Durable Object namespaces, service and assets `Fetcher`s, and Workflows. Text vars and secrets are `str`, and JSON vars are converted to Python values. Every other binding is a `Binding` passthrough.
 
 **Context.** Wrappers for the execution context and the Durable Object state. They expose `js_object`, typed snake_case methods (`wait_until`, `storage.get`, `storage.put`, `storage.delete_all` and so on), and forward every other attribute, including camelCase names, to the JS object. `wait_until` accepts a coroutine.
@@ -106,7 +108,7 @@ Typed and FFI usage side by side. The generated `Env` comes from Wynd.
 class Default(WorkerEntrypoint[Env]):
     async def fetch(self, request: Request) -> Response:
         counter = self.env.COUNTER.get_by_name("global")   # typed as Counter
-        value = await counter.increment(by=2)
+        value = await counter.increment(2)                 # RPC is positional
         await self.env.CACHE.put("last", str(value))
         raw = self.env.CACHE.js_object                      # JS KVNamespace
         return Response.json({"value": value})
