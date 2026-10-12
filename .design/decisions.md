@@ -67,7 +67,7 @@ Wynd stores a content hash in `.wynd/synced`. The hash covers `pyproject.toml`, 
 
 ### Staged config
 
-Wrangler resolves relative paths from the directory of the config file. The staged config in `.wynd/build/` therefore needs its path keys rewritten to absolute paths that point back at the project. `main` and `base_dir` stay relative so they resolve into the staged source. Wynd rewrites a fixed list of known keys, including keys inside `env` sections and `previews`, such as `assets.directory`, container image paths, `site.bucket` and `d1_databases[].migrations_dir`. The full list is in [wynd.md](wynd.md) and comes from the [config research](research/wrangler-config-discovery.md). `build.cwd` resolves from the process working directory, so Wynd runs Wrangler from the project root and leaves it alone. `main` points at the staged `src/`. A relative path under a key Wynd does not recognize fails the build.
+Wrangler resolves relative paths from the directory of the config file. The staged config in `.wynd/build/` therefore needs its path keys rewritten to absolute paths that point back at the project. `main` and `base_dir` stay relative so they resolve into the staged source. Wynd rewrites a fixed list of known keys, including keys inside `env` sections and `previews`, such as `assets.directory`, container image paths, `site.bucket` and `d1_databases[].migrations_dir`. The full list is in [wynd.md](wynd.md) and comes from the [config research](research/wrangler-config-discovery.md). `build.cwd` resolves from the process working directory, so Wynd runs Wrangler from the user's working directory and leaves it alone. `main` points at the staged `src/`. A relative path under a key Wynd does not recognize fails the build.
 
 ### Commands
 

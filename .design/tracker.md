@@ -77,7 +77,8 @@ Done when a fixture Worker that uses KV, D1, R2, a Durable Object and RPC betwee
 
 ## Phase 3: shipping
 
-- [ ] Wynd 4. The stager and config path rewrite, without pruning
+- [x] Wynd 4. The stager and config path rewrite, without pruning
+  - Result: `wynd deploy` syncs, stages the source directory and the full `python_modules/` into `.wynd/build/`, writes `wrangler.json` there with the known path keys made absolute (top level, every `env` and `previews`), and runs Wrangler with the user's `-c` replaced by `--config <staged>`. `uv run pytest -m e2e -k deploy` dry-runs a fixture with `./public` assets and a `./Dockerfile` container from the staged config on 3.12 (2025-06-01). It needs Docker, because Wrangler builds the image during the dry run. Wrangler runs from the user's working directory, not the project root, so `--outdir` and `build.cwd` resolve as with plain Wrangler. The relative-path check only catches values starting with `./` or `../` (see [wynd.md](wynd.md#modules)).
 - [ ] Wynd 5. The shaker and size report
 - [ ] Wynd 6. `versions upload` and `preview` use the deploy flow
 
