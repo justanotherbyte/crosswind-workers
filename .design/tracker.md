@@ -60,7 +60,8 @@ Done when a crosswind Worker answers HTTP under `wynd dev` on 3.12, 3.13 and 3.1
 
 - [x] crosswind 2. Boundary conversion
   - Result: `python_from_rpc` and `python_to_rpc` follow the stock rules. `uv run pytest -m e2e -k rpc_e2e` round-trips the stock RPC test's values between two entrypoints on all three targets. The check for unsendable types walks iterables as stock does but skips one-shot iterators, so a generator is no longer consumed. `Blob`, `FormData` and `File` pass through as JS values until crosswind 3. As in the stock SDK, a JS `Error` that crosses twice reads `Error: Error: message`.
-- [ ] crosswind 3. HTTP types
+- [x] crosswind 3. HTTP types
+  - Result: `Request`, `Response`, `FetchResponse`, `fetch`, headers, `Blob`, `File` and `FormData` are ported from the stock SDK, with `FetchResponse` still built on Pyodide's. `uv run pytest -m e2e -k http_e2e` runs the stock HTTP unit tests that don't need `env`, plus one test per fixed stock bug, inside workerd on all three targets. The fixed bugs are a JS `File` over RPC, `len()` and missing keys on `FormData`, `Response(blob)`, non-standard methods, `memoryview` and `bytearray` Blob parts, and `Response.redirect`. `Response.json` became a descriptor, so `Response.json(data)` and `await response.json()` both type-check. `Request.cf` is typed `Any`.
 - [ ] crosswind 4. Env and bindings
 - [ ] crosswind 5. Durable Objects and context
 - [ ] crosswind 6. Module globals
