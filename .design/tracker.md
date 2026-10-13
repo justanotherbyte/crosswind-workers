@@ -90,7 +90,8 @@ Done when `wynd deploy --dry-run` reports fewer bytes, the pruned fixture still 
 
 ## Phase 4: types
 
-- [ ] Wynd 7. Typegen, `wynd types --check`, and render-and-compare inside dev and deploy
+- [x] Wynd 7. Typegen, `wynd types --check`, and render-and-compare inside dev and deploy
+  - Result: `wynd types` writes `env.py` in the source directory, `--check` exits 1 when the text differs or the file is missing, and `dev`, `deploy`, `versions upload` and `preview` rewrite it after sync when the project uses crosswind-workers. Stock-SDK projects get no `env.py`, and `wynd types` refuses them. With `-e`, bindings and vars come from the environment's own table, and `assets` and `logfwdr` are inherited, as in Wrangler 4.129. `uv run pytest -m e2e -k types` in Wynd serves a Worker built on `WorkerEntrypoint[Env]` and `DurableObject[Env]` under `wynd dev` on 3.12 (2025-06-01), checks `src/` with ty and `env.py` with ruff's formatter and isort, then changes the config and sees `wynd types --check` fail. ty accepts the generated `Env` and the Durable Object generic. The e2e test plants a misspelled RPC method and binding name, and ty reports both, so Pyright isn't needed. Wynd won't overwrite an `env.py` whose first line isn't the generated header. Still open: `env.py` follows the chosen environment, so `wynd deploy -e prod` rewrites the committed file and a later `wynd types --check` without `-e` fails. Secret names come only from `.dev.vars`, not `.dev.vars.<env>`, `.env` or `secrets.required`. `unsafe.bindings` of type `plain_text` or `json` are typed `Binding`, though Python receives a `str` or a `JsDict`.
 
 This waits for phase 2, because typegen imports the class names from `workers.bindings`. The research tested Pyright and mypy, not ty, so this phase also checks whether ty accepts the generated `Env` protocol and the Durable Object generic. If it doesn't, run Pyright alongside ty for this check or change the generated shape.
 
