@@ -199,7 +199,6 @@ None.
 
 ### Not yet specified
 
-- Which of the stock SDK's entropy patches are still needed. numpy 2.2.5 deployed and reseeded per isolate without them, and the other patched packages are untested.
 - The exact signatures workerd calls `scheduled`, `queue` and the other non-fetch handlers with. On a 2025-06-01 date production called `on_fetch` but `scheduled`, which matches workerd's source: only `fetch`, `connect`, `alarm` and `webSocket*` are renamed. A cron handler declared as `scheduled(self, controller, env=None, ctx=None)` never wrote its result, and the cause is unknown.
 - How JS exceptions map to Python exception classes beyond what the stock SDK does today.
 - Streaming request and response bodies, and how they interact with lazy body reads.
