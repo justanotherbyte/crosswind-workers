@@ -208,7 +208,7 @@ crosswind fixes every bug flagged in the [stock SDK catalog](research/stock-sdk-
 - Binding wrappers read non-callable attributes on every access, so a D1 cursor's counters stay current.
 - The WSGI adapter's buffered-body fallback runs when the request has no stream.
 
-The stock SDK's own tests import private names, so crosswind serves them too: `workers.rpc` resolves `_EnvWrapper`, `_RpcStubWrapper`, `_BindingWrapper` and `_FetcherWrapper` to its own classes, and wrappers answer `_env`, `_ctx` and `_binding` with their JS object. A KV `arrayBuffer` read returns a `memoryview`, as in stock. The ASGI and WSGI adapters set `encodeBody: "manual"` when the app sets `Content-Encoding`, because both SDKs otherwise compressed a GZipMiddleware body a second time.
+The stock SDK's own tests import private names, so crosswind serves them too: `workers.rpc` resolves `_EnvWrapper`, `_RpcStubWrapper`, `_BindingWrapper` and `_FetcherWrapper` to its own classes, and wrappers answer `_env`, `_ctx` and `_binding` with their JS object. A KV `arrayBuffer` read returns a `memoryview`, as in stock. A binary WebSocket message reaches its handler as the JS `ArrayBuffer`, and a JS promise read from a wrapper stays a raw, awaitable promise, both as in stock. The ASGI and WSGI adapters set `encodeBody: "manual"` when the app sets `Content-Encoding`, because both SDKs otherwise compressed a GZipMiddleware body a second time.
 
 `patch_env` stays an exported name and raises `NotImplementedError`, because workerd removed the helper it needs on 2026-06-30. crosswind's docs list every fix on a "differences from the stock SDK" page.
 
