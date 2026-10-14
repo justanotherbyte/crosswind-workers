@@ -75,12 +75,15 @@ Wrangler resolves relative paths from the directory of the config file. The stag
 | --- | --- |
 | `wynd sync` | Resolves and installs the target packages |
 | `wynd types` | Generates `src/env.py` (see [Typed bindings](#typed-bindings)) |
+| `wynd init [DIR]` | Writes a new crosswind-workers project into DIR, or the working directory |
 | `wynd dev` | Syncs, then runs `wrangler dev` on the full tree from the working directory |
 | `wynd deploy [--dry-run]` | Syncs, prunes into `.wynd/build/` and runs Wrangler with the staged config. `--dry-run` reports bytes before and after pruning. |
 | `wynd versions upload`, `wynd preview` | Same flow as deploy, because both upload code |
 | Anything else | Passed straight to Wrangler, without sync |
 
-`wynd dev` never runs pruned code in v1. Wrangler reloads on source changes without Wynd in the loop, so a pruned tree would raise `ImportError` for any import added during a dev session. Wynd has no `publish`, because wrangler 4.127.1 rejects it as an unknown argument, and no `init`, because create-cloudflare's Python template sets up pywrangler and the stock SDK.
+`wynd dev` never runs pruned code in v1. Wrangler reloads on source changes without Wynd in the loop, so a pruned tree would raise `ImportError` for any import added during a dev session. Wynd has no `publish`, because wrangler 4.127.1 rejects it as an unknown argument.
+
+`wynd init` exists because create-cloudflare's Python template sets up pywrangler and the stock SDK. It writes `pyproject.toml` (depending on `crosswind-workers`), `.python-version`, `wrangler.json`, `src/main.py` and `src/env.py`, and adds `.venv/`, `python_modules/` and `.wynd/` to `.gitignore`. The compatibility date is the newest target's date, because the pinned Wrangler rejects later dates. The config is `wrangler.json`, not `wrangler.jsonc`, because Wrangler takes a `wrangler.json` in any parent directory over a `wrangler.jsonc` in the project. If any of those files or another Wrangler config already exists, `init` writes nothing and exits 1. It doesn't run `uv sync` or create `uv.lock`. Before this, `wynd init` passed through to `wrangler init`.
 
 ### Runtime dependencies
 

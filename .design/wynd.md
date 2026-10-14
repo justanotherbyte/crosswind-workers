@@ -149,7 +149,6 @@ Prior art: pywrangler's target-selection and flag tests (`test_py_version_detect
 
 ## Out of scope
 
-- `wynd init` and project scaffolding.
 - `publish`, which Wrangler no longer has.
 - A `--pruned` mode for `wynd dev`.
 - Symbol slicing, minification and execution tracing in the shaker.
