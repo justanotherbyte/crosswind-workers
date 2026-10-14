@@ -110,6 +110,11 @@ Done when the fixture's generated `env.py` type-checks, imports at runtime, and 
 
 Done when the stock SDK's workerd tests and agents `verify` pass against crosswind.
 
+## After phase 5
+
+- [x] wynd init. Write a new crosswind-workers project ([decisions.md](decisions.md#commands)).
+  - Result: `tests/test_init.py` covers the files written, the refusal when a project or Wrangler config exists, and appending to an existing `.gitignore`. `uv run pytest -m e2e -k init_e2e` runs `wynd init` and then `wynd dev`, and gets `Hello from Python!` on the 3.14 target. A one-off run against `crosswind-workers` 0.1.0 from PyPI served the same answer.
+
 ## Order
 
 Phase 1 joins both packages in the real runtime early, so later phases build on a path already proven end to end. Phases 2 and 3 can overlap, because phase 3 needs only a Worker that runs. Phase 4 waits for the binding class names, and phase 5 waits for Wynd sync, because its fixtures need Pyodide packages.
