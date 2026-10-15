@@ -114,6 +114,8 @@ Done when the stock SDK's workerd tests and agents `verify` pass against crosswi
 
 - [x] wynd init. Write a new crosswind-workers project ([decisions.md](decisions.md#commands)).
   - Result: `tests/test_init.py` covers the files written, the refusal when a project or Wrangler config exists, and appending to an existing `.gitignore`. `uv run pytest -m e2e -k init_e2e` runs `wynd init` and then `wynd dev`, and gets `Hello from Python!` on the 3.14 target. A one-off run against `crosswind-workers` 0.1.0 from PyPI served the same answer.
+- [x] Shake more. Strip comments and docstrings, trim `METADATA`, drop build-time files and modules that can't import, and resolve lazy-import tables ([decisions.md](decisions.md#tree-shaker)).
+  - Result: the gzipped kept tree of the agents Worker went from 2,191,279 to 1,825,189 bytes (16.7% fewer), and nanochat's (FastAPI, pydantic and numpy on 3.14) went from 5,348,239 to 4,264,531 (20.3% fewer). `uv run pytest -m e2e` passes. A stripped copy of nanochat answered `/chat` under `wrangler dev`, which runs numpy's forward pass, and returned pydantic's validation error for an empty prompt.
 
 ## Order
 
