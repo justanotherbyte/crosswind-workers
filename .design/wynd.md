@@ -151,7 +151,7 @@ Prior art: pywrangler's target-selection and flag tests (`test_py_version_detect
 
 - `publish`, which Wrangler no longer has.
 - A `--pruned` mode for `wynd dev`.
-- Symbol slicing, minification and execution tracing in the shaker.
+- Symbol slicing and execution tracing in the shaker ([decisions.md](decisions.md#tree-shaker)).
 - Pruning the project's own source.
 - Creating or managing a host virtual environment.
 - Supporting crosswind-workers under pywrangler. That depends on a pywrangler PR outside this effort.
