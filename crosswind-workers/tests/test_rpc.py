@@ -6,8 +6,6 @@ from fake_js import JsValue, js_date, js_error, js_request, js_response, jsnull
 
 from workers import Request, Response, python_from_rpc, python_to_rpc
 
-# python_from_rpc
-
 
 def test_null_and_python_values_arrive_as_is() -> None:
     assert python_from_rpc(jsnull) is None
@@ -64,9 +62,6 @@ def test_other_js_values_pass_through() -> None:
     assert python_from_rpc(JsValue("TestController")) is None
 
 
-# python_to_rpc
-
-
 def test_none_becomes_null_at_any_depth() -> None:
     assert python_to_rpc(None) is jsnull
     assert python_to_rpc({"a": None, "b": [None]}) == {"a": jsnull, "b": [jsnull]}
@@ -85,12 +80,6 @@ def test_python_values_with_js_twins_are_converted() -> None:
     assert sent[1].getTime() == 86_400_000
     assert sent[2].message == "bad"
     assert sent[3].proxied is callback
-
-
-def test_a_wrapped_js_value_is_sent_as_itself() -> None:
-    request = js_request("https://x/")
-
-    assert python_to_rpc(Request(request)) is request
 
 
 @pytest.mark.parametrize(

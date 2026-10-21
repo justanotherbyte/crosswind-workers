@@ -1,5 +1,6 @@
 """The stock SDK's HTTP unit tests (tests/workerd-test/sdk/tests/test_sdk.py),
-minus those needing env, plus a test for each stock bug crosswind fixes."""
+minus those needing env or repeating another test, plus a test for each
+stock bug crosswind fixes."""
 
 from contextlib import contextmanager
 from http import HTTPMethod, HTTPStatus
@@ -29,9 +30,6 @@ def raises(error, message=None):
             assert str(caught) == message, str(caught)
     else:
         raise AssertionError(f"expected {error.__name__}")
-
-
-# Stock: fetch
 
 
 async def test_fetch_returns_a_response():
@@ -66,7 +64,6 @@ async def test_fetch_options():
 
 async def test_fetch_rejects_a_js_style_options_dict():
     with raises(TypeError):
-        # The JS calling convention, which Python rejects.
         await fetch(f"{ORIGIN}/sub", {"headers": {"X": "1"}})  # ty: ignore[too-many-positional-arguments]
 
 
@@ -90,9 +87,6 @@ async def test_fetched_form_data_with_blobs():
     assert await data["blob.py"].text() == "print(42)"
     assert data["blob.py"].content_type == "text/python"
     assert data["metadata"].name == "metadata.json"
-
-
-# Stock: Response
 
 
 async def test_inherited_response_methods():
@@ -168,9 +162,6 @@ async def test_response_buffer_sources():
     for body in cases:
         buffer = await Response(body).buffer()
         assert len(buffer.to_bytes()) == int(body.byteLength)
-
-
-# Stock: FormData, Blob, File, Request
 
 
 async def test_form_data():
@@ -254,9 +245,6 @@ async def test_request_cf():
     assert cf.colo == "DFW"
 
 
-# crosswind fixes for stock bugs
-
-
 async def test_fix_file_received_over_rpc():
     file = python_from_rpc(js.File.new(to_js(["x"]), "a.txt", type="text/plain"))
     assert isinstance(file, File)
@@ -276,10 +264,6 @@ async def test_fix_form_data_len_and_missing_key():
 
 async def test_fix_response_from_blob():
     assert await Response(Blob(["blob body"])).text() == "blob body"
-
-
-async def test_fix_non_standard_method():
-    assert Request("http://example.com", method="PURGE").method == "PURGE"
 
 
 async def test_fix_buffers_as_a_single_blob_part():

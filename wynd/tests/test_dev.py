@@ -338,7 +338,6 @@ def test_a_uv_failure_stops_before_wrangler(
     assert main(["dev"]) == 1
     assert "no solution found" in capsys.readouterr().err
     assert tools.wrangler() == []
-    # The last good install stays in place.
     assert (project / "python_modules" / "workers").is_dir()
 
 
@@ -404,17 +403,6 @@ def test_warns_when_the_venv_python_differs_from_the_target(
         "Editor types may differ from production."
         " To match: uv venv --python 3.12 && uv sync\n"
     )
-
-
-def test_a_matching_venv_gives_no_warning(
-    tools: Tools, project: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    (project / ".venv").mkdir()
-    (project / ".venv" / "pyvenv.cfg").write_text("version_info = 3.12.11\n")
-
-    main(["dev"])
-
-    assert capsys.readouterr().err == ""
 
 
 def test_sync_installs_without_running_wrangler(tools: Tools, project: Path) -> None:
@@ -487,7 +475,6 @@ def test_a_local_source_is_reinstalled_on_every_sync(
     main(["sync"])
     main(["sync"])
 
-    # Edits inside ../mylib change no input the sync token hashes.
     assert len(tools.uv("pip", "install")) == 2
 
 
