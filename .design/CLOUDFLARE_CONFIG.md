@@ -27,6 +27,11 @@ These decisions date from 2026-10-21.
 - `Env` lives in the user's source code, such as `src/env.py`, and `cloudflare.config.py` imports it. Worker code never imports the config file.
 - Wynd looks for four config files: `cloudflare.config.py`, `wrangler.jsonc`, `wrangler.json` and `wrangler.toml`. Finding more than one is an error.
 - Wynd builds the config from plain Python objects and types, then validates and converts it in Python. It doesn't stage a `cloudflare.config.ts` or run `wrangler --experimental-new-config`.
+- The builders are `wynd.config`: `Config`, `Worker`, `Container`, `context()`, and the `bindings`, `triggers` and `exports` modules. Wynd isn't installed in the Worker, so Worker code imports `Env` under `TYPE_CHECKING` and writes `WorkerEntrypoint["Env"]`. `wynd deploy` fails when the Worker imports `wynd` at runtime. Editor types need `wynd` as a dev dependency.
+- An Env class body reads the mode from `context()`, which Wynd sets before it loads the config. Factories get the same `Context`. The mode comes from `-e` or `CLOUDFLARE_ENV`, and `is_preview` is true for `wynd preview`. Wynd doesn't pass either one to Wrangler for a Python config.
+- A Durable Object or Workflow binding without `worker` binds a class of its own Worker, and its Wrangler entry has no `script_name`. An Env class can't reference its own `Worker` definition, because that definition imports the Env.
+- The crosswind env wrapper returns `None` for a binding the deployed mode leaves out, where the stock SDK raises `AttributeError`.
+- For a Python config, `wynd dev` runs Wrangler on `.wynd/dev/wrangler.json`, with `python_modules/` and the mode's `.dev.vars` beside it. Passthrough commands run on `.wynd/dev/wrangler.passthrough.json`. It sits in the same directory, so `--local` commands see the dev server's local state, but in a separate file, so a running `wynd dev` doesn't reload with another mode's config.
 
 ## What the file is
 
@@ -550,8 +555,6 @@ These parts of [decisions.md](decisions.md) and the code would change:
 
 ## Open questions
 
-- Which module ships the builders: `crosswind-workers` (`workers.config`), Wynd, or a third package? Worker code needs the spec types, and users run Wynd through `uvx`, so it isn't installed in the project.
-- How does the env class get the mode? Options are a context Wynd sets before import, a factory that builds the class, or one class per mode.
 - Which `@cloudflare/config` version does the port track? 0.27.0 matches the latest Wrangler, but `k2` and `analytics` from 0.27.0 need a newer pin than 4.129.0.
 - Does `wynd types` stay for Wrangler configs once Python configs exist?
 - Should Wynd forward `cf` API commands at all, given `cf` reads account settings only from `cloudflare.config.ts`?
