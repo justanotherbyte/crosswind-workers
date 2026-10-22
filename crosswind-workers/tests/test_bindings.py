@@ -11,6 +11,7 @@ from workers.bindings import (
     DurableObjectNamespace,
     Fetcher,
     ImagesBinding,
+    ImageTransformer,
     KVNamespace,
     Queue,
     R2Bucket,
@@ -163,15 +164,15 @@ def test_vectorize_sends_camel_case_query_options_and_lists() -> None:
     js_index = JsBinding("VectorizeIndexImpl", returns=matches)
     index = Vectorize(js_index)
 
-    result = run(index.query([0.5, 1.0], top_k=3, return_metadata="all"))
-    run(index.upsert(v for v in [{"id": "a", "values": [0.5]}]))
-    run(index.delete_by_ids({"a"}))
+    result = run(index.query((0.5, 1.0), top_k=3, return_metadata="all"))
+    run(index.upsert(iter([{"id": "a", "values": [0.5]}])))
+    run(index.delete_by_ids("doc-1"))
 
     assert result == {"count": 0, "matches": []}
     assert js_index.calls == [
         ("query", ([0.5, 1.0], {"topK": 3, "returnMetadata": "all"})),
         ("upsert", ([{"id": "a", "values": [0.5]}],)),
-        ("deleteByIds", (["a"],)),
+        ("deleteByIds", (["doc-1"],)),
     ]
 
 
@@ -190,6 +191,13 @@ def test_analytics_engine_writes_a_data_point_synchronously() -> None:
     ]
 
 
+def test_analytics_engine_refuses_a_string_where_a_list_belongs() -> None:
+    dataset = AnalyticsEngineDataset(JsBinding("AnalyticsEngineDataset"))
+
+    with pytest.raises(TypeError, match="blobs must be a list, not str"):
+        dataset.write_data_point(blobs="/home")
+
+
 def test_rate_limit_returns_the_outcome_as_a_dict() -> None:
     js_limiter = JsBinding("Ratelimit", returns=JsValue("Object", {"success": True}))
 
@@ -205,9 +213,11 @@ def test_images_chain_transforms_and_returns_a_python_response() -> None:
     js_transformer = JsBinding("ImageTransformer", returns=js_result)
     js_transformer.sync.update(transform=js_transformer, draw=js_transformer)
     js_images = JsBinding("ImagesBindingImpl", sync={"input": js_transformer})
-    stream, overlay = JsValue("ReadableStream"), JsValue("ReadableStream")
+    js_overlay = JsBinding("ImageTransformer")
+    stream = JsValue("ReadableStream")
 
     transformer = ImagesBinding(js_images).input(stream).transform(width=100)
+    overlay = ImageTransformer(js_overlay)
     result = run(transformer.draw(overlay, opacity=0.5).output(format="image/avif"))
 
     assert result.content_type() == "image/avif"
@@ -215,7 +225,7 @@ def test_images_chain_transforms_and_returns_a_python_response() -> None:
     assert js_images.calls == [("input", (stream, {}))]
     assert js_transformer.calls == [
         ("transform", ({"width": 100},)),
-        ("draw", (overlay, {"opacity": 0.5})),
+        ("draw", (js_overlay, {"opacity": 0.5})),
         ("output", ({"format": "image/avif"},)),
     ]
 

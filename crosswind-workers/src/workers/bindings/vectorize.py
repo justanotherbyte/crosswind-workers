@@ -1,10 +1,12 @@
 from collections.abc import Iterable
-from typing import Any
+from typing import Any, Literal
 
 from ..rpc import python_from_rpc, python_to_rpc
 from .base import Binding, _js_options
 
 __all__ = ("Vectorize",)
+
+type _MetadataLevel = bool | Literal["all", "indexed", "none"]
 
 
 class Vectorize(Binding):
@@ -13,13 +15,13 @@ class Vectorize(Binding):
 
     async def query(
         self,
-        vector: list[float] | Any,
+        vector: Iterable[float],
         options: Any = None,
         *,
         top_k: int | None = None,
         namespace: str | None = None,
         return_values: bool | None = None,
-        return_metadata: bool | str | None = None,
+        return_metadata: _MetadataLevel | None = None,
         filter: dict[str, Any] | None = None,
         **extra: Any,
     ) -> dict[str, Any]:
@@ -32,8 +34,8 @@ class Vectorize(Binding):
             return_metadata=return_metadata,
             filter=filter,
         )
-        matches = await self.js_object.query(python_to_rpc(vector), js_options)
-        return python_from_rpc(matches)
+        js_vector = python_to_rpc(list(vector))
+        return python_from_rpc(await self.js_object.query(js_vector, js_options))
 
     async def query_by_id(
         self,
@@ -43,7 +45,7 @@ class Vectorize(Binding):
         top_k: int | None = None,
         namespace: str | None = None,
         return_values: bool | None = None,
-        return_metadata: bool | str | None = None,
+        return_metadata: _MetadataLevel | None = None,
         filter: dict[str, Any] | None = None,
         **extra: Any,
     ) -> dict[str, Any]:
@@ -68,10 +70,13 @@ class Vectorize(Binding):
             await self.js_object.upsert(python_to_rpc(list(vectors)))
         )
 
-    async def delete_by_ids(self, ids: Iterable[str]) -> dict[str, Any]:
-        return python_from_rpc(
-            await self.js_object.deleteByIds(python_to_rpc(list(ids)))
-        )
+    async def delete_by_ids(self, ids: str | Iterable[str]) -> dict[str, Any]:
+        return python_from_rpc(await self.js_object.deleteByIds(_js_ids(ids)))
 
-    async def get_by_ids(self, ids: Iterable[str]) -> list[dict[str, Any]]:
-        return python_from_rpc(await self.js_object.getByIds(python_to_rpc(list(ids))))
+    async def get_by_ids(self, ids: str | Iterable[str]) -> list[dict[str, Any]]:
+        return python_from_rpc(await self.js_object.getByIds(_js_ids(ids)))
+
+
+def _js_ids(ids: str | Iterable[str]) -> Any:
+    # One id as a string, as R2Bucket.delete takes one key.
+    return python_to_rpc([ids] if isinstance(ids, str) else list(ids))

@@ -16,6 +16,10 @@ class AnalyticsEngineDataset(Binding):
         blobs: Iterable[str | bytes | None] | None = None,
         **extra: Any,
     ) -> None:
+        for name, values in (("indexes", indexes), ("blobs", blobs)):
+            if isinstance(values, (str, bytes)):
+                raise TypeError(f"{name} must be a list, not {type(values).__name__}")
+
         js_event = _js_options(
             event,
             extra,
