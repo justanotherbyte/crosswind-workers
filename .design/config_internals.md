@@ -1,6 +1,6 @@
 # Config internals
 
-Design sketch written 2026-10-22, for how Wynd reads a project's config and hands Wrangler a file it stages in `.wynd/`. Nothing here is implemented. The user-facing API for `cloudflare.config.py` is in [python_config.md](python_config.md), and this file replaces that file's internal shape. Wrangler facts come from the `wrangler@4.129.0` package Wynd pins: `config-schema.json`, and `wrangler-dist/cli.js` cited by line number.
+Design sketch written 2026-10-22, for how Wynd reads a project's config and hands Wrangler a file it stages in `.wynd/`. Implemented on 2026-10-22, with the differences listed under [Implementation notes](#implementation-notes). The user-facing API for `cloudflare.config.py` is in [python_config.md](python_config.md), and this file replaces that file's internal shape. Wrangler facts come from the `wrangler@4.129.0` package Wynd pins: `config-schema.json`, and `wrangler-dist/cli.js` cited by line number.
 
 ## Problem
 
@@ -515,3 +515,16 @@ Rejected from C:
 1. Write `WranglerConfig` with its typed fields and `to_wrangler`.
 2. Write `WranglerConfigParser` and move `targets`, `typegen` and `sync` onto the model.
 3. Make the round-trip test pass. Do all of this before touching `config/`.
+
+## Implementation notes
+
+The build follows this sketch, with these differences:
+
+- `WranglerConfig.main` returns a `Path` and raises `WyndError` when the config sets none. Passthrough never reads it, so an assets-only Worker still stages.
+- The exception is `ProjectNotFoundError`, because ruff's N818 wants the suffix.
+- Wynd warns about `<root>/.wrangler/state` once by creating an empty `.wynd/run/.wrangler/state/`. It doesn't move existing data.
+- A dev restage stages the config again but doesn't sync. A changed `compatibility_date` reaches `python_modules/` on the next `wynd dev`.
+- `WranglerConfig.to_wrangler` raises the "can't encode" error that `_compile.render` used to raise, so a Python config and a TOML date share one JSON path.
+- `required_secrets` now reach `env.py`, so a `bindings.Secret()` types as `str` without a `.dev.vars` entry.
+
+Two open questions now have answers from `uv run pytest -m e2e`. `wrangler dev` serves a Worker from `.wynd/run/` with a `main` relative to it, on all three targets. `d1 migrations apply --local` reads `<root>/migrations` through the written-out `migrations_dir` and keeps its state in `.wynd/run/.wrangler/state/`. Wrangler still writes `.wrangler/cache/cf.json` in the working directory, which is harmless.

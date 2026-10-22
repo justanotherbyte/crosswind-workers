@@ -9,8 +9,12 @@ The Python version and Pyodide package index a Worker runs on, chosen from its c
 _Avoid_: runtime version, platform
 
 **Full tree**:
-Every package installed for the target, as `python_modules/` in the project root. `wynd dev` runs it.
+Every package installed for the target, as `python_modules/` in the run directory. `wynd dev` runs it.
 _Avoid_: vendor directory, site-packages
+
+**Run directory**:
+The directory under `.wynd/run/` that stands in for a config's directory. It holds the staged config that `wynd dev` and every passthrough command hand Wrangler, with the full tree, copies of `.dev.vars*` and `.env*`, and local state in `.wrangler/state/`.
+_Avoid_: staging directory
 
 **Staged tree**:
 The pruned copy of a Worker in `.wynd/build/`, with its own config, that every upload command sends.

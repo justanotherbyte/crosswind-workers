@@ -4,7 +4,7 @@ Design sketch for `cloudflare.config.py`, written 2026-10-22. It covers the conf
 
 ## Status
 
-Started 2026-10-22, on this file's internal shape, not config_internals.md's. The config compiles to the Wrangler dict, and `.wynd.wrangler.json` (or `.wynd.<mode>.wrangler.json`) beside it is `Project.config_path`, so typegen, `src/env.py`, staging, targets and sync are unchanged. crosswind is untouched. Built:
+Started 2026-10-22, on this file's internal shape, not config_internals.md's. The config compiles to the Wrangler dict, and `.wynd.wrangler.json` (or `.wynd.<mode>.wrangler.json`) beside it is `Project.config_path`, so typegen, `src/env.py`, staging, targets and sync are unchanged. crosswind is untouched. [config_internals.md](config_internals.md) has since moved that file to `.wynd/run/cloudflare.config.py.json` (or `cloudflare.config.py.<mode>.json`). Built:
 
 - `wynd.config` with `_model.py`, `bindings.py`, `triggers.py`, `exports.py` and `_compile.py` (`load`, `to_wrangler`, `render`). `errors.py` holds `WyndError`, so `project -> config -> project` doesn't cycle.
 - Bindings: Text, Json, Secret, D1, KV, R2, Queue, DurableObject, Workflow, Service, AI, VersionMetadata, Assets. Triggers: Cron, Fetch, Queue. All five Durable Object states, Worker and Workflow exports.
