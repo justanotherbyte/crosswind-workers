@@ -17,7 +17,7 @@ from .services import DurableObjectNamespace, Fetcher
 from .vectorize import Vectorize
 from .workflow import Workflow
 
-__all__: list[str] = []
+__all__ = ()
 
 _CLASS_FOR_JS: dict[str, Callable[[Any], Any]] = {
     "Fetcher": Fetcher,

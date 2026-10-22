@@ -17,7 +17,7 @@ class ImageTransformationResult(Binding):
         return self.js_object.contentType()
 
     def image(
-        self, options: Any = None, /, *, encoding: str | None = None, **extra: Any
+        self, options: Any = None, *, encoding: str | None = None, **extra: Any
     ) -> Any:
         return self.js_object.image(_js_options(options, extra, encoding=encoding))
 
@@ -40,7 +40,6 @@ class ImageTransformer(Binding):
     async def output(
         self,
         options: Any = None,
-        /,
         *,
         format: str | None = None,
         quality: int | None = None,

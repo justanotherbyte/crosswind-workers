@@ -10,7 +10,6 @@ class AnalyticsEngineDataset(Binding):
     def write_data_point(
         self,
         event: Any = None,
-        /,
         *,
         indexes: Iterable[str | bytes | None] | None = None,
         doubles: Iterable[float] | None = None,
