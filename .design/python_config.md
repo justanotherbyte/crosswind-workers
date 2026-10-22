@@ -155,7 +155,7 @@ $ wynd d1 migrations apply DATABASE -e staging --remote   # passthrough, gets --
 wynd/src/wynd/
   config/
     __init__.py   Public names: Config, Worker, Container, Assets, Observability,
-                  Placement, Limits, TailConsumer, and the bindings, triggers and
+                  Placement, Limits, TailConsumer, Rule, and the bindings, triggers and
                   exports modules. Re-exports only.
     _model.py     Config, Worker, Container and the nested settings.
     bindings.py   Binding and one class per binding kind. Each class knows its Wrangler entry.
@@ -220,6 +220,8 @@ class Observability: ...  # enabled, head_sampling_rate, redact_query_string, lo
 class Placement: ...      # mode: "off" | "smart", hint. The targeted forms come later.
 class Limits: ...         # cpu_ms, subrequests
 class TailConsumer: ...   # worker -> tail_consumers[].service
+class Rule: ...           # type, globs, fallthrough -> rules[]. Uploads files such as
+                          # .onnx or .json under base_dir as Text, Data or CompiledWasm.
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -243,6 +245,7 @@ class Worker:
     workers_dev: bool | None = None
     preview_urls: bool | None = None
     tail_consumers: Sequence[TailConsumer] = ()
+    rules: Sequence[Rule] = ()
 
 
 @dataclass(frozen=True, kw_only=True)
