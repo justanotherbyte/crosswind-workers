@@ -177,9 +177,13 @@ v1 has typed classes for these config sections:
 | `durable_objects.bindings` | `DurableObjectNamespace[Class]` |
 | `services` and the assets binding | `Fetcher` |
 | `workflows` | `Workflow` |
+| `vectorize` | `Vectorize` |
+| `analytics_engine_datasets` | `AnalyticsEngineDataset` |
+| `images` | `ImagesBinding` |
+| `ratelimits` | `RateLimit` |
 | text `vars` and secrets | `str` |
 
-Every other binding is a `Binding`, a loosely typed passthrough wrapper. That covers Workers AI, Vectorize, Analytics Engine, Images, rate limiting, Hyperdrive, version metadata and any section Wynd doesn't recognize, so a new Cloudflare product doesn't break `wynd types`. A JSON var such as `"FLAGS": {"beta": true}` arrives as a Python value and is typed from its literal value, so code reads `FLAGS["beta"]` where the stock SDK allowed `FLAGS.beta`. The env wrapper can't tell a JSON object from another plain-object binding, so version metadata also arrives as a dict whose keys read as attributes, and typegen types it that way, not as `Binding`. A JS value a binding returns that conversion leaves as JS comes back as a `Binding`; the stock SDK wrapped it in the parent's class.
+Every other binding is a `Binding`, a loosely typed passthrough wrapper. That covers Workers AI, Hyperdrive, version metadata and any section Wynd doesn't recognize, so a new Cloudflare product doesn't break `wynd types`. A JSON var such as `"FLAGS": {"beta": true}` arrives as a Python value and is typed from its literal value, so code reads `FLAGS["beta"]` where the stock SDK allowed `FLAGS.beta`. The env wrapper can't tell a JSON object from another plain-object binding, so version metadata also arrives as a dict whose keys read as attributes, and typegen types it that way, not as `Binding`. A JS value a binding returns that conversion leaves as JS comes back as a `Binding`; the stock SDK wrapped it in the parent's class.
 
 Python typing cannot express a Durable Object RPC stub the way TypeScript's `DurableObjectStub<T>` does. `get_by_name` is typed as returning the class itself, so the checker catches wrong method names and argument types but not calls to sync methods through the stub.
 
