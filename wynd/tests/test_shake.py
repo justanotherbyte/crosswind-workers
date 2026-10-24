@@ -217,7 +217,11 @@ def test_star_imports_read_literal___all___and_keep_everything_otherwise(
     install(
         tools,
         {
-            "extended/__init__.py": ("__all__: list[str] = ['a']\n__all__ += ('b',)\n"),
+            "extended/__init__.py": (
+                "__all__: list[str] = ['a']\n__all__ += ('b',)\n"
+                # pydantic reads __all__ like this, which doesn't change it.
+                "def __dir__():\n    return list(__all__)\n"
+            ),
             "extended/a.py": "",
             "extended/b.py": "",
             "extended/c.py": "",

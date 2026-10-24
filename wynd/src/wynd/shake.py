@@ -727,9 +727,10 @@ def _is_import_call(func: ast.expr) -> bool:
 
 def _all(tree: ast.Module) -> list[str] | None:
     """A module's __all__ from literal top-level `=` and `+=` statements,
-    nothing without one, or None when any other code touches it."""
+    nothing without one, or None when other code may change it. Reading it,
+    as pydantic's `__dir__` does with `list(__all__)`, doesn't."""
     names: list[str] = []
-    read: set[ast.AST] = set()
+    literal: set[ast.AST] = set()
     for node in tree.body:
         if isinstance(node, ast.Assign) and len(node.targets) == 1:
             target, extend = node.targets[0], False
@@ -746,13 +747,32 @@ def _all(tree: ast.Module) -> list[str] | None:
             and strings is not None
         ):
             names = names + strings if extend else strings
-            read.add(target)
+            literal.add(target)
 
-    touched = any(
-        isinstance(node, ast.Name) and node.id == "__all__" and node not in read
+    parents = {
+        child: node for node in ast.walk(tree) for child in ast.iter_child_nodes(node)
+    }
+    changed = any(
+        isinstance(node, ast.Name)
+        and node.id == "__all__"
+        and node not in literal
+        and not _reads(node, parents[node])
         for node in ast.walk(tree)
     )
-    return None if touched else names
+    return None if changed else names
+
+
+def _reads(name: ast.Name, parent: ast.AST) -> bool:
+    """Whether a use of a name only reads it into another value: a call's
+    argument, a loop's iterable, or an operand. A method call, subscript,
+    alias or store may change it."""
+    if not isinstance(name.ctx, ast.Load):
+        return False
+    if isinstance(parent, ast.Call):
+        return name in parent.args
+    if isinstance(parent, (ast.For, ast.comprehension)):
+        return parent.iter is name
+    return isinstance(parent, (ast.Compare, ast.BinOp, ast.Starred))
 
 
 def _strings(value: ast.expr | None) -> list[str] | None:
