@@ -202,7 +202,13 @@ class _Shaker:
 
     def _visit_star(self, name: str, reason: str) -> None:
         path = None if name in self.missing else _find(name, self.roots)
-        for member in _all(_parse(path)) if path else []:
+        members = _all(_parse(path)) if path else []
+        if members is None:
+            # Python imports every submodule __all__ names, which can be any.
+            edge = (f"{name}:", f"{reason} by a computed __all__", Kind.COMPUTED_PREFIX)
+            self.queue.append(edge)
+            return
+        for member in members:
             self.queue.append((f"{name}.{member}", reason, Kind.FROM_IMPORTED_NAME))
 
     def _visit_module(self, name: str, parent: str, reason: str, kind: Kind) -> None:
@@ -681,17 +687,46 @@ def _is_import_call(func: ast.expr) -> bool:
     return isinstance(func, ast.Attribute) and func.attr == "import_module"
 
 
-def _all(tree: ast.Module) -> list[str]:
-    """A module's literal __all__, or nothing."""
+def _all(tree: ast.Module) -> list[str] | None:
+    """A module's __all__ from literal top-level `=` and `+=` statements,
+    nothing without one, or None when any other code touches it."""
+    names: list[str] = []
+    read: set[ast.AST] = set()
     for node in tree.body:
+        if isinstance(node, ast.Assign) and len(node.targets) == 1:
+            target, extend = node.targets[0], False
+        elif isinstance(node, ast.AnnAssign):
+            target, extend = node.target, False
+        elif isinstance(node, ast.AugAssign) and isinstance(node.op, ast.Add):
+            target, extend = node.target, True
+        else:
+            continue
+        strings = _strings(node.value)
         if (
-            isinstance(node, ast.Assign)
-            and any(isinstance(t, ast.Name) and t.id == "__all__" for t in node.targets)
-            and isinstance(node.value, (ast.List, ast.Tuple))
+            isinstance(target, ast.Name)
+            and target.id == "__all__"
+            and strings is not None
         ):
-            names = [e.value for e in node.value.elts if isinstance(e, ast.Constant)]
-            return [name for name in names if isinstance(name, str)]
-    return []
+            names = names + strings if extend else strings
+            read.add(target)
+
+    touched = any(
+        isinstance(node, ast.Name) and node.id == "__all__" and node not in read
+        for node in ast.walk(tree)
+    )
+    return None if touched else names
+
+
+def _strings(value: ast.expr | None) -> list[str] | None:
+    """The strings of a literal list or tuple of strings, or None."""
+    if not isinstance(value, (ast.List, ast.Tuple)):
+        return None
+    strings = [
+        e.value
+        for e in value.elts
+        if isinstance(e, ast.Constant) and isinstance(e.value, str)
+    ]
+    return strings if len(strings) == len(value.elts) else None
 
 
 def _resolve_relative(module: str, level: int, package: str) -> str | None:

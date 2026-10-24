@@ -181,6 +181,41 @@ def test_the_import_graph_follows_the_edge_rules(tools: Tools, project: Path) ->
     assert shake["lazy_pkg/a.py"] == ("kept", "imported by lazy_pkg by a computed name")
 
 
+def test_star_imports_read_literal___all___and_keep_everything_otherwise(
+    tools: Tools, project: Path
+) -> None:
+    install(
+        tools,
+        {
+            "extended/__init__.py": ("__all__: list[str] = ['a']\n__all__ += ('b',)\n"),
+            "extended/a.py": "",
+            "extended/b.py": "",
+            "extended/c.py": "",
+            "computed/__init__.py": "__all__ = ['a']\n__all__.append('b')\n",
+            "computed/a.py": "",
+            "computed/sub/__init__.py": "",
+            "computed/sub/b.py": "",
+        },
+    )
+    entry(project, "from extended import *\nfrom computed import *\n")
+
+    assert main(["deploy"]) == 0
+
+    assert staged_modules(project) == [
+        "computed/__init__.py",
+        "computed/a.py",
+        "computed/sub/__init__.py",
+        "computed/sub/b.py",
+        "extended/__init__.py",
+        "extended/a.py",
+        "extended/b.py",
+    ]
+    assert listing(project)["computed/sub/b.py"] == (
+        "kept",
+        "imported by entry by a computed __all__",
+    )
+
+
 def test_used_packages_keep_their_data_files_but_not_tests_docs_or_stubs(
     tools: Tools, project: Path
 ) -> None:
