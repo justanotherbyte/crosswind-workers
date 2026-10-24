@@ -79,6 +79,8 @@ def stage_upload(project: Project) -> tuple[StagedFile, ShakePlan]:
     )
     if plan.errors:
         raise WyndError("\n".join(plan.errors))
+    for warning in plan.warnings:
+        print(f"wynd: warning: {warning}", file=sys.stderr)
 
     build = project.wynd_dir / "build"
     shutil.rmtree(build, ignore_errors=True)

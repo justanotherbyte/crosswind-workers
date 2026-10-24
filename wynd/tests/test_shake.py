@@ -565,6 +565,41 @@ def test_a_module_whose_top_level_import_is_missing_is_dropped(
     assert shake["pkg/helper.py"] == ("dropped", "not imported")
 
 
+def test_a_dropped_module_the_entry_loads_at_startup_warns(
+    tools: Tools, project: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    install(
+        tools,
+        {
+            "pkg/__init__.py": "",
+            "pkg/plugin.py": "import notinstalled.sub\n",
+            "pkg/guarded.py": "import notinstalled\n",
+            "pkg/deferred.py": "import notinstalled\n",
+        },
+    )
+    (project / "src" / "app.py").write_text("from pkg import plugin\n")
+    entry(
+        project,
+        "import app\n"
+        "try:\n    import pkg.guarded\nexcept ImportError:\n    pass\n"
+        "def handler():\n    import pkg.deferred\n",
+    )
+
+    assert main(["deploy"]) == 0
+
+    warnings = [
+        line
+        for line in capsys.readouterr().err.splitlines()
+        if line.startswith("wynd: warning:")
+    ]
+    assert warnings == [
+        (
+            "wynd: warning: entry imports app, which imports pkg.plugin, which "
+            "imports notinstalled, which isn't installed, so the Worker can't start."
+        )
+    ]
+
+
 LAZY: dict[str, str | bytes] = {
     "lazy/__init__.py": (
         "from importlib import import_module\n"

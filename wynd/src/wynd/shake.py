@@ -75,13 +75,14 @@ class _Cut(NamedTuple):
 @dataclass(frozen=True)
 class ShakePlan:
     """Kept and dropped files of `site` by POSIX path, unresolved names, and
-    build errors."""
+    build errors and warnings."""
 
     site: Path
     kept: dict[str, str] = field(default_factory=dict)
     dropped: dict[str, str] = field(default_factory=dict)
     unresolved: dict[str, str] = field(default_factory=dict)
     errors: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
 
     def size_report(self, target: Path) -> str:
         """Bytes in the full tree and in the copies in `target`, without
@@ -149,6 +150,10 @@ class _Shaker:
         self.queue: deque[tuple[str, str, Kind]] = deque()
         self.seen: set[tuple[str, Kind]] = set()
         self.missing: set[str] = set()
+        # Each module's unguarded top-level imports, and each module dropped
+        # for a package it imports that way and isn't installed.
+        self.eager: dict[str, list[str]] = {}
+        self.absent: dict[str, str] = {}
         self.lazy_tables: dict[str, dict[str, str]] = {}
         self.waiting_for_whole_package: dict[str, list[tuple[str, str, Kind]]] = {}
         self.whole: set[str] = set()
@@ -163,6 +168,7 @@ class _Shaker:
 
         self._decide_files()
         self._check_binaries()
+        self._warn_on_absent(entry_name)
         return self.plan
 
     def _visit(self, name: str, reason: str, kind: Kind) -> None:
@@ -212,21 +218,24 @@ class _Shaker:
             return
 
         tree = _parse(path)
+        package = name if path.name == "__init__.py" or path.is_dir() else parent
+        eager = _eager(tree, package)
         in_site = path.is_relative_to(self.site)
-        absent = _absent_import(tree, self.roots) if in_site else None
+        absent = _absent_import(eager, self.roots) if in_site else None
         if absent:
             # Python would raise ImportError, as it does for a missing module.
             self.missing.add(name)
+            self.absent[name] = absent
             if path.is_file():
                 self.plan.dropped[path.relative_to(self.site).as_posix()] = (
                     f"imports {absent}, which isn't installed"
                 )
             return
 
+        self.eager[name] = eager
         if path.is_file() and in_site:
             self.plan.kept.setdefault(path.relative_to(self.site).as_posix(), reason)
 
-        package = name if path.name == "__init__.py" or path.is_dir() else parent
         table = _lazy_table(tree, package)
         if table:
             self.lazy_tables[name] = table
@@ -295,6 +304,30 @@ class _Shaker:
             self.plan.errors.append(
                 f"{name} is in {kind or 'an unknown'} format, not WebAssembly built "
                 "for Pyodide, so it can't load in a Worker."
+            )
+
+    def _warn_on_absent(self, entry_name: str) -> None:
+        """Warn for each dropped module that the entry loads through unguarded
+        top-level imports, since its ImportError then stops the Worker starting."""
+        importers: dict[str, str | None] = {entry_name: None}
+        queue = deque([entry_name])
+        while queue:
+            name = queue.popleft()
+            for imported in self.eager.get(name, []):
+                if imported not in importers:
+                    importers[imported] = name
+                    queue.append(imported)
+
+        for name, package in self.absent.items():
+            if name not in importers:
+                continue
+            chain = [package, name]
+            while (importer := importers[chain[-1]]) is not None:
+                chain.append(importer)
+            entry, *imported = reversed(chain)
+            self.plan.warnings.append(
+                f"{entry} imports {', which imports '.join(imported)}, "
+                "which isn't installed, so the Worker can't start."
             )
 
 
@@ -417,25 +450,36 @@ def _headers(metadata: bytes) -> bytes:
     return headers + b"\n" if blank else metadata
 
 
-def _absent_import(tree: ast.Module, roots: tuple[Path, ...]) -> str | None:
-    """A package that an unconditional top-level import names and that no root,
-    the stdlib or the runtime has, so importing the module always fails."""
+def _absent_import(eager: list[str], roots: tuple[Path, ...]) -> str | None:
+    """A top-level package among a module's eager imports that no root, the
+    stdlib or the runtime has, so importing the module always fails."""
+    return next(
+        (
+            name
+            for name in eager
+            if "." not in name
+            and name not in STDLIB
+            and name not in RUNTIME_MODULES
+            and _find(name, roots) is None
+        ),
+        None,
+    )
+
+
+def _eager(tree: ast.Module, package: str) -> list[str]:
+    """The modules a module's unguarded top-level imports load, each package
+    before its modules, as candidates: `from x import y` lists x.y."""
+    names = []
     for node in tree.body:
         if isinstance(node, ast.Import):
-            names = [alias.name for alias in node.names]
-        elif isinstance(node, ast.ImportFrom) and not node.level and node.module:
-            names = [node.module]
-        else:
-            continue
-        for name in names:
-            top = name.partition(".")[0]
-            if (
-                top not in STDLIB
-                and top not in RUNTIME_MODULES
-                and _find(top, roots) is None
-            ):
-                return top
-    return None
+            names += [alias.name for alias in node.names]
+        elif isinstance(node, ast.ImportFrom):
+            names += [name for name, _, _ in _from_import(node, package)]
+
+    parts = [name.split(".") for name in names]
+    return list(
+        dict.fromkeys(".".join(p[:i]) for p in parts for i in range(1, len(p) + 1))
+    )
 
 
 def _lazy_table(tree: ast.Module, package: str) -> dict[str, str]:
