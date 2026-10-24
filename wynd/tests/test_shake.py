@@ -63,6 +63,41 @@ def test_deploy_stages_only_modules_the_entry_imports(
     assert shake["unused.py"] == ("dropped", "not imported")
 
 
+def test_analyze_reports_the_shake_without_staging_or_wrangler(
+    tools: Tools, project: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    used = (
+        "try:\n    import optional_dep\n    import broken\n"
+        "except ImportError:\n    pass\n"
+    )
+    install(
+        tools,
+        {
+            "used/__init__.py": used,
+            "used/data.txt": "0123456789",
+            "unused/__init__.py": "x = 1\n",
+            "broken.py": "import gone\n",
+        },
+    )
+    entry(project, "import used\nimport json\n")
+
+    assert main(["analyze"]) == 0
+
+    out = capsys.readouterr().out
+    rows = {line.split()[0]: line.split()[1:] for line in out.splitlines() if line}
+    assert rows["used"] == ["2", f"{len(used) + 10}", "0", "0"]
+    assert rows["unused"] == ["0", "0", "1", "6"]
+    missing = out.partition("Imports no installed module provides:\n")[2]
+    assert sorted(missing.split("\n\n")[0].splitlines()) == [
+        "  gone (imported by broken)",
+        "  optional_dep (imported by used)",
+    ]
+    assert "json" not in out
+    assert listing(project)["unused/__init__.py"] == ("dropped", "not imported")
+    assert not (project / ".wynd" / "build").exists()
+    assert tools.wrangler() == []
+
+
 def test_a_module_keeps_its_packages_and_what_they_import(
     tools: Tools, project: Path
 ) -> None:
@@ -179,6 +214,45 @@ def test_the_import_graph_follows_the_edge_rules(tools: Tools, project: Path) ->
     assert shake["js"] == ("unresolved", "imported by entry")
     assert shake["typing"] == ("unresolved", "imported by entry")
     assert shake["lazy_pkg/a.py"] == ("kept", "imported by lazy_pkg by a computed name")
+
+
+def test_star_imports_read_literal___all___and_keep_everything_otherwise(
+    tools: Tools, project: Path
+) -> None:
+    install(
+        tools,
+        {
+            "extended/__init__.py": (
+                "__all__: list[str] = ['a']\n__all__ += ('b',)\n"
+                # pydantic reads __all__ like this, which doesn't change it.
+                "def __dir__():\n    return list(__all__)\n"
+            ),
+            "extended/a.py": "",
+            "extended/b.py": "",
+            "extended/c.py": "",
+            "computed/__init__.py": "__all__ = ['a']\n__all__.append('b')\n",
+            "computed/a.py": "",
+            "computed/sub/__init__.py": "",
+            "computed/sub/b.py": "",
+        },
+    )
+    entry(project, "from extended import *\nfrom computed import *\n")
+
+    assert main(["deploy"]) == 0
+
+    assert staged_modules(project) == [
+        "computed/__init__.py",
+        "computed/a.py",
+        "computed/sub/__init__.py",
+        "computed/sub/b.py",
+        "extended/__init__.py",
+        "extended/a.py",
+        "extended/b.py",
+    ]
+    assert listing(project)["computed/sub/b.py"] == (
+        "kept",
+        "imported by entry by a computed __all__",
+    )
 
 
 def test_used_packages_keep_their_data_files_but_not_tests_docs_or_stubs(
@@ -563,6 +637,41 @@ def test_a_module_whose_top_level_import_is_missing_is_dropped(
         "imports notinstalled, which isn't installed",
     )
     assert shake["pkg/helper.py"] == ("dropped", "not imported")
+
+
+def test_a_dropped_module_the_entry_loads_at_startup_warns(
+    tools: Tools, project: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    install(
+        tools,
+        {
+            "pkg/__init__.py": "",
+            "pkg/plugin.py": "import notinstalled.sub\n",
+            "pkg/guarded.py": "import notinstalled\n",
+            "pkg/deferred.py": "import notinstalled\n",
+        },
+    )
+    (project / "src" / "app.py").write_text("from pkg import plugin\n")
+    entry(
+        project,
+        "import app\n"
+        "try:\n    import pkg.guarded\nexcept ImportError:\n    pass\n"
+        "def handler():\n    import pkg.deferred\n",
+    )
+
+    assert main(["deploy"]) == 0
+
+    warnings = [
+        line
+        for line in capsys.readouterr().err.splitlines()
+        if line.startswith("wynd: warning:")
+    ]
+    assert warnings == [
+        (
+            "wynd: warning: entry imports app, which imports pkg.plugin, which "
+            "imports notinstalled, which isn't installed, so the Worker can't start."
+        )
+    ]
 
 
 LAZY: dict[str, str | bytes] = {

@@ -75,13 +75,14 @@ class _Cut(NamedTuple):
 @dataclass(frozen=True)
 class ShakePlan:
     """Kept and dropped files of `site` by POSIX path, unresolved names, and
-    build errors."""
+    build errors and warnings."""
 
     site: Path
     kept: dict[str, str] = field(default_factory=dict)
     dropped: dict[str, str] = field(default_factory=dict)
     unresolved: dict[str, str] = field(default_factory=dict)
     errors: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
 
     def size_report(self, target: Path) -> str:
         """Bytes in the full tree and in the copies in `target`, without
@@ -92,6 +93,43 @@ class ShakePlan:
             f"python_modules is {before:,} bytes, {after:,} after pruning "
             f"({before - after:,} fewer). Each file's decision is in .wynd/shake.txt."
         )
+
+    def report(self) -> str:
+        """Files and bytes kept and dropped per top-level package of `site`,
+        most kept bytes first, then the imports no installed module provides."""
+        rows: dict[str, list[int]] = {}
+        for names, column in ((self.kept, 0), (self.dropped, 2)):
+            for name in names:
+                top = name.partition("/")[0]
+                row = rows.setdefault(
+                    "*.dist-info" if top.endswith(".dist-info") else top, [0] * 4
+                )
+                row[column] += 1
+                row[column + 1] += self._size(name)
+
+        ordered = sorted(rows.items(), key=lambda r: (-r[1][1], -r[1][3], r[0]))
+        totals = [sum(column) for column in zip(*rows.values(), strict=True)]
+        table = [["", "kept files", "kept bytes", "dropped files", "dropped bytes"]]
+        table += [[group, *(f"{n:,}" for n in row)] for group, row in ordered]
+        table.append(["total", *(f"{n:,}" for n in totals or [0] * 4)])
+        widths = [max(len(row[i]) for row in table) for i in range(5)]
+        lines = [
+            "  ".join(
+                [row[0].ljust(widths[0])]
+                + [cell.rjust(w) for cell, w in zip(row[1:], widths[1:], strict=True)]
+            )
+            for row in table
+        ]
+
+        unprovided = [
+            f"  {name} ({reason})"
+            for name, reason in self.unresolved.items()
+            if not _provided(name)
+        ]
+        if unprovided:
+            lines += ["", "Imports no installed module provides:", *unprovided]
+        lines += ["", "Each file's decision is in .wynd/shake.txt."]
+        return "\n".join(lines)
 
     def log(self) -> str:
         """Every decision, one "decision<TAB>name<TAB>reason" line each."""
@@ -149,6 +187,10 @@ class _Shaker:
         self.queue: deque[tuple[str, str, Kind]] = deque()
         self.seen: set[tuple[str, Kind]] = set()
         self.missing: set[str] = set()
+        # Each module's unguarded top-level imports, and each module dropped
+        # for a package it imports that way and isn't installed.
+        self.eager: dict[str, list[str]] = {}
+        self.absent: dict[str, str] = {}
         self.lazy_tables: dict[str, dict[str, str]] = {}
         self.waiting_for_whole_package: dict[str, list[tuple[str, str, Kind]]] = {}
         self.whole: set[str] = set()
@@ -163,6 +205,7 @@ class _Shaker:
 
         self._decide_files()
         self._check_binaries()
+        self._warn_on_absent(entry_name)
         return self.plan
 
     def _visit(self, name: str, reason: str, kind: Kind) -> None:
@@ -196,7 +239,13 @@ class _Shaker:
 
     def _visit_star(self, name: str, reason: str) -> None:
         path = None if name in self.missing else _find(name, self.roots)
-        for member in _all(_parse(path)) if path else []:
+        members = _all(_parse(path)) if path else []
+        if members is None:
+            # Python imports every submodule __all__ names, which can be any.
+            edge = (f"{name}:", f"{reason} by a computed __all__", Kind.COMPUTED_PREFIX)
+            self.queue.append(edge)
+            return
+        for member in members:
             self.queue.append((f"{name}.{member}", reason, Kind.FROM_IMPORTED_NAME))
 
     def _visit_module(self, name: str, parent: str, reason: str, kind: Kind) -> None:
@@ -212,21 +261,25 @@ class _Shaker:
             return
 
         tree = _parse(path)
+        package = name if path.name == "__init__.py" or path.is_dir() else parent
+        eager = _eager(tree, package)
         in_site = path.is_relative_to(self.site)
-        absent = _absent_import(tree, self.roots) if in_site else None
+        absent = _absent_import(eager, self.roots) if in_site else None
         if absent:
             # Python would raise ImportError, as it does for a missing module.
             self.missing.add(name)
+            self.absent[name] = absent
+            self.plan.unresolved.setdefault(absent, f"imported by {name}")
             if path.is_file():
                 self.plan.dropped[path.relative_to(self.site).as_posix()] = (
                     f"imports {absent}, which isn't installed"
                 )
             return
 
+        self.eager[name] = eager
         if path.is_file() and in_site:
             self.plan.kept.setdefault(path.relative_to(self.site).as_posix(), reason)
 
-        package = name if path.name == "__init__.py" or path.is_dir() else parent
         table = _lazy_table(tree, package)
         if table:
             self.lazy_tables[name] = table
@@ -295,6 +348,30 @@ class _Shaker:
             self.plan.errors.append(
                 f"{name} is in {kind or 'an unknown'} format, not WebAssembly built "
                 "for Pyodide, so it can't load in a Worker."
+            )
+
+    def _warn_on_absent(self, entry_name: str) -> None:
+        """Warn for each dropped module that the entry loads through unguarded
+        top-level imports, since its ImportError then stops the Worker starting."""
+        importers: dict[str, str | None] = {entry_name: None}
+        queue = deque([entry_name])
+        while queue:
+            name = queue.popleft()
+            for imported in self.eager.get(name, []):
+                if imported not in importers:
+                    importers[imported] = name
+                    queue.append(imported)
+
+        for name, package in self.absent.items():
+            if name not in importers:
+                continue
+            chain = [package, name]
+            while (importer := importers[chain[-1]]) is not None:
+                chain.append(importer)
+            entry, *imported = reversed(chain)
+            self.plan.warnings.append(
+                f"{entry} imports {', which imports '.join(imported)}, "
+                "which isn't installed, so the Worker can't start."
             )
 
 
@@ -417,25 +494,39 @@ def _headers(metadata: bytes) -> bytes:
     return headers + b"\n" if blank else metadata
 
 
-def _absent_import(tree: ast.Module, roots: tuple[Path, ...]) -> str | None:
-    """A package that an unconditional top-level import names and that no root,
-    the stdlib or the runtime has, so importing the module always fails."""
+def _absent_import(eager: list[str], roots: tuple[Path, ...]) -> str | None:
+    """A top-level package among a module's eager imports that no root, the
+    stdlib or the runtime has, so importing the module always fails."""
+    return next(
+        (
+            name
+            for name in eager
+            if "." not in name and not _provided(name) and _find(name, roots) is None
+        ),
+        None,
+    )
+
+
+def _provided(name: str) -> bool:
+    """Whether the stdlib or the Workers runtime has a module's top-level package."""
+    top = name.partition(".")[0]
+    return top in STDLIB or top in RUNTIME_MODULES
+
+
+def _eager(tree: ast.Module, package: str) -> list[str]:
+    """The modules a module's unguarded top-level imports load, each package
+    before its modules, as candidates: `from x import y` lists x.y."""
+    names = []
     for node in tree.body:
         if isinstance(node, ast.Import):
-            names = [alias.name for alias in node.names]
-        elif isinstance(node, ast.ImportFrom) and not node.level and node.module:
-            names = [node.module]
-        else:
-            continue
-        for name in names:
-            top = name.partition(".")[0]
-            if (
-                top not in STDLIB
-                and top not in RUNTIME_MODULES
-                and _find(top, roots) is None
-            ):
-                return top
-    return None
+            names += [alias.name for alias in node.names]
+        elif isinstance(node, ast.ImportFrom):
+            names += [name for name, _, _ in _from_import(node, package)]
+
+    parts = [name.split(".") for name in names]
+    return list(
+        dict.fromkeys(".".join(p[:i]) for p in parts for i in range(1, len(p) + 1))
+    )
 
 
 def _lazy_table(tree: ast.Module, package: str) -> dict[str, str]:
@@ -637,17 +728,66 @@ def _is_import_call(func: ast.expr) -> bool:
     return isinstance(func, ast.Attribute) and func.attr == "import_module"
 
 
-def _all(tree: ast.Module) -> list[str]:
-    """A module's literal __all__, or nothing."""
+def _all(tree: ast.Module) -> list[str] | None:
+    """A module's __all__ from literal top-level `=` and `+=` statements,
+    nothing without one, or None when other code may change it. Reading it,
+    as pydantic's `__dir__` does with `list(__all__)`, doesn't."""
+    names: list[str] = []
+    literal: set[ast.AST] = set()
     for node in tree.body:
+        if isinstance(node, ast.Assign) and len(node.targets) == 1:
+            target, extend = node.targets[0], False
+        elif isinstance(node, ast.AnnAssign):
+            target, extend = node.target, False
+        elif isinstance(node, ast.AugAssign) and isinstance(node.op, ast.Add):
+            target, extend = node.target, True
+        else:
+            continue
+        strings = _strings(node.value)
         if (
-            isinstance(node, ast.Assign)
-            and any(isinstance(t, ast.Name) and t.id == "__all__" for t in node.targets)
-            and isinstance(node.value, (ast.List, ast.Tuple))
+            isinstance(target, ast.Name)
+            and target.id == "__all__"
+            and strings is not None
         ):
-            names = [e.value for e in node.value.elts if isinstance(e, ast.Constant)]
-            return [name for name in names if isinstance(name, str)]
-    return []
+            names = names + strings if extend else strings
+            literal.add(target)
+
+    parents = {
+        child: node for node in ast.walk(tree) for child in ast.iter_child_nodes(node)
+    }
+    changed = any(
+        isinstance(node, ast.Name)
+        and node.id == "__all__"
+        and node not in literal
+        and not _reads(node, parents[node])
+        for node in ast.walk(tree)
+    )
+    return None if changed else names
+
+
+def _reads(name: ast.Name, parent: ast.AST) -> bool:
+    """Whether a use of a name only reads it into another value: a call's
+    argument, a loop's iterable, or an operand. A method call, subscript,
+    alias or store may change it."""
+    if not isinstance(name.ctx, ast.Load):
+        return False
+    if isinstance(parent, ast.Call):
+        return name in parent.args
+    if isinstance(parent, (ast.For, ast.comprehension)):
+        return parent.iter is name
+    return isinstance(parent, (ast.Compare, ast.BinOp, ast.Starred))
+
+
+def _strings(value: ast.expr | None) -> list[str] | None:
+    """The strings of a literal list or tuple of strings, or None."""
+    if not isinstance(value, (ast.List, ast.Tuple)):
+        return None
+    strings = [
+        e.value
+        for e in value.elts
+        if isinstance(e, ast.Constant) and isinstance(e.value, str)
+    ]
+    return strings if len(strings) == len(value.elts) else None
 
 
 def _resolve_relative(module: str, level: int, package: str) -> str | None:
