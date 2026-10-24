@@ -128,6 +128,7 @@ class Env(Protocol):
 | `types [--check]` | load project, render `env.py`, write it or compare |
 | `dev` | sync, regenerate `env.py` if its rendered text differs, host check, run `wrangler dev` with the original arguments from the working directory, so `-c` and config discovery mean the same to Wynd and Wrangler |
 | `deploy`, `versions upload`, `preview` | sync, regenerate `env.py` if its rendered text differs, shake, stage, run Wrangler with `--config` set to the staged config and the user's other arguments |
+| `analyze` | sync, shake, write `.wynd/shake.txt`, print the per-package report, exit 1 on the plan's build errors |
 | anything else | run Wrangler with the original arguments |
 
 ### Contracts with other components

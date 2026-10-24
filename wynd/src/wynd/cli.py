@@ -9,7 +9,7 @@ from .errors import ProjectNotFoundError, WyndError
 from .host import warn_on_venv_mismatch
 from .project import load_project
 from .scaffold import scaffold
-from .stage import stage_run, stage_upload
+from .stage import shake_project, stage_run, stage_upload
 from .sync import select_sdk, sync
 from .targets import select_target
 from .typegen import write_env
@@ -79,13 +79,19 @@ def main(argv: list[str] | None = None) -> int:
             target = select_target(project.config)
             sync(project, target)
             if (
-                flow != "sync"
+                flow not in ("sync", "analyze")
                 and select_sdk(project.dependencies) == "crosswind-workers"
             ):
                 write_env(project)
             if flow == "dev":
                 warn_on_venv_mismatch(project, target)
         if flow == "sync":
+            return 0
+        if flow == "analyze":
+            plan = shake_project(project)
+            print(plan.report())
+            if plan.errors:
+                raise WyndError("\n".join(plan.errors))
             return 0
 
         if flow == "upload":
@@ -127,7 +133,8 @@ def _flow(rest: list[str]) -> str:
         or (command == "preview" and not subcommand)
     ):
         return "upload"
-    return command if command in ("dev", "sync", "types", "init") else "passthrough"
+    own = ("dev", "sync", "types", "init", "analyze")
+    return command if command in own else "passthrough"
 
 
 def _restage(cwd: Path, config: str | None, mode: str | None) -> None:

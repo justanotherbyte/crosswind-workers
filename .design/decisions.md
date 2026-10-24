@@ -79,6 +79,7 @@ Wrangler resolves relative paths from the directory of the config file. The stag
 | `wynd dev` | Syncs, then runs `wrangler dev` on the full tree from the working directory |
 | `wynd deploy [--dry-run]` | Syncs, prunes into `.wynd/build/` and runs Wrangler with the staged config. `--dry-run` reports bytes before and after pruning. |
 | `wynd versions upload`, `wynd preview` | Same flow as deploy, because both upload code |
+| `wynd analyze` | Syncs and shakes without staging or running Wrangler. Prints kept and dropped files and bytes per top-level package, and the imports no installed module provides. Writes `.wynd/shake.txt` and exits 1 on build errors. |
 | Anything else | Passed straight to Wrangler, without sync |
 
 `wynd dev` never runs pruned code in v1. Wrangler reloads on source changes without Wynd in the loop, so a pruned tree would raise `ImportError` for any import added during a dev session. Wynd has no `publish`, because wrangler 4.127.1 rejects it as an unknown argument.

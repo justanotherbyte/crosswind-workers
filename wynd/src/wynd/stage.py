@@ -10,7 +10,7 @@ from .errors import WyndError
 from .project import Project
 from .shake import ShakePlan, shake
 
-__all__ = ("StagedFile", "stage_run", "stage_upload")
+__all__ = ("StagedFile", "shake_project", "stage_run", "stage_upload")
 
 # Files Wrangler reads beside its config for dev variables.
 ENV_FILE_PREFIXES = (".dev.vars", ".env")
@@ -66,27 +66,34 @@ def stage_run(project: Project) -> StagedFile:
     return StagedFile(path, text)
 
 
+def shake_project(project: Project) -> ShakePlan:
+    """Shake the Worker's python_modules, write each decision to
+    .wynd/shake.txt, and print the plan's warnings."""
+    plan = shake(
+        project.python_modules,
+        project.source.path.parent / _source_dir(project),
+        project.config.main,
+        project.keep_modules,
+    )
+    (project.wynd_dir / "shake.txt").write_text(plan.log())
+    for warning in plan.warnings:
+        print(f"wynd: warning: {warning}", file=sys.stderr)
+    return plan
+
+
 def stage_upload(project: Project) -> tuple[StagedFile, ShakePlan]:
     """Shake and copy the Worker into .wynd/build/, with its config."""
     config_dir = project.source.path.parent
     source = _source_dir(project)
 
-    plan = shake(
-        project.python_modules,
-        config_dir / source,
-        project.config.main,
-        project.keep_modules,
-    )
+    plan = shake_project(project)
     if plan.errors:
         raise WyndError("\n".join(plan.errors))
-    for warning in plan.warnings:
-        print(f"wynd: warning: {warning}", file=sys.stderr)
 
     build = project.wynd_dir / "build"
     shutil.rmtree(build, ignore_errors=True)
     shutil.copytree(config_dir / source, build / source)
     plan.copy_kept(build / "python_modules", docstrings=not project.keep_docstrings)
-    (project.wynd_dir / "shake.txt").write_text(plan.log())
 
     path = build / "wrangler.json"
     return StagedFile(path, project.config.to_wrangler(path, code_root=build)), plan

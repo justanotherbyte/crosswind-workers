@@ -94,6 +94,44 @@ class ShakePlan:
             f"({before - after:,} fewer). Each file's decision is in .wynd/shake.txt."
         )
 
+    def report(self) -> str:
+        """Files and bytes kept and dropped per top-level package of `site`,
+        most kept bytes first, then the imports no installed module provides."""
+        rows: dict[str, list[int]] = {}
+        for names, column in ((self.kept, 0), (self.dropped, 2)):
+            for name in names:
+                top = name.partition("/")[0]
+                row = rows.setdefault(
+                    "*.dist-info" if top.endswith(".dist-info") else top, [0] * 4
+                )
+                row[column] += 1
+                row[column + 1] += self._size(name)
+
+        ordered = sorted(rows.items(), key=lambda r: (-r[1][1], -r[1][3], r[0]))
+        totals = [sum(column) for column in zip(*rows.values(), strict=True)]
+        table = [["", "kept files", "kept bytes", "dropped files", "dropped bytes"]]
+        table += [[group, *(f"{n:,}" for n in row)] for group, row in ordered]
+        table.append(["total", *(f"{n:,}" for n in totals or [0] * 4)])
+        widths = [max(len(row[i]) for row in table) for i in range(5)]
+        lines = [
+            "  ".join(
+                [row[0].ljust(widths[0])]
+                + [cell.rjust(w) for cell, w in zip(row[1:], widths[1:], strict=True)]
+            )
+            for row in table
+        ]
+
+        provided = STDLIB | RUNTIME_MODULES
+        missing = [
+            f"  {name} ({reason})"
+            for name, reason in self.unresolved.items()
+            if name.partition(".")[0] not in provided
+        ]
+        if missing:
+            lines += ["", "Imports no installed module provides:", *missing]
+        lines += ["", "Each file's decision is in .wynd/shake.txt."]
+        return "\n".join(lines)
+
     def log(self) -> str:
         """Every decision, one "decision<TAB>name<TAB>reason" line each."""
         decisions = {

@@ -63,6 +63,36 @@ def test_deploy_stages_only_modules_the_entry_imports(
     assert shake["unused.py"] == ("dropped", "not imported")
 
 
+def test_analyze_reports_the_shake_without_staging_or_wrangler(
+    tools: Tools, project: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    used = "try:\n    import optional_dep\nexcept ImportError:\n    pass\n"
+    install(
+        tools,
+        {
+            "used/__init__.py": used,
+            "used/data.txt": "0123456789",
+            "unused/__init__.py": "x = 1\n",
+        },
+    )
+    entry(project, "import used\nimport json\n")
+
+    assert main(["analyze"]) == 0
+
+    out = capsys.readouterr().out
+    rows = {line.split()[0]: line.split()[1:] for line in out.splitlines() if line}
+    assert rows["used"] == ["2", f"{len(used) + 10}", "0", "0"]
+    assert rows["unused"] == ["0", "0", "1", "6"]
+    assert (
+        "Imports no installed module provides:\n  optional_dep (imported by used)\n"
+        in out
+    )
+    assert "json" not in out
+    assert listing(project)["unused/__init__.py"] == ("dropped", "not imported")
+    assert not (project / ".wynd" / "build").exists()
+    assert tools.wrangler() == []
+
+
 def test_a_module_keeps_its_packages_and_what_they_import(
     tools: Tools, project: Path
 ) -> None:
