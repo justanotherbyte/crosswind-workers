@@ -121,14 +121,13 @@ class ShakePlan:
             for row in table
         ]
 
-        provided = STDLIB | RUNTIME_MODULES
-        missing = [
+        unprovided = [
             f"  {name} ({reason})"
             for name, reason in self.unresolved.items()
-            if name.partition(".")[0] not in provided
+            if not _provided(name)
         ]
-        if missing:
-            lines += ["", "Imports no installed module provides:", *missing]
+        if unprovided:
+            lines += ["", "Imports no installed module provides:", *unprovided]
         lines += ["", "Each file's decision is in .wynd/shake.txt."]
         return "\n".join(lines)
 
@@ -270,6 +269,7 @@ class _Shaker:
             # Python would raise ImportError, as it does for a missing module.
             self.missing.add(name)
             self.absent[name] = absent
+            self.plan.unresolved.setdefault(absent, f"imported by {name}")
             if path.is_file():
                 self.plan.dropped[path.relative_to(self.site).as_posix()] = (
                     f"imports {absent}, which isn't installed"
@@ -501,13 +501,16 @@ def _absent_import(eager: list[str], roots: tuple[Path, ...]) -> str | None:
         (
             name
             for name in eager
-            if "." not in name
-            and name not in STDLIB
-            and name not in RUNTIME_MODULES
-            and _find(name, roots) is None
+            if "." not in name and not _provided(name) and _find(name, roots) is None
         ),
         None,
     )
+
+
+def _provided(name: str) -> bool:
+    """Whether the stdlib or the Workers runtime has a module's top-level package."""
+    top = name.partition(".")[0]
+    return top in STDLIB or top in RUNTIME_MODULES
 
 
 def _eager(tree: ast.Module, package: str) -> list[str]:

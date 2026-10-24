@@ -66,13 +66,17 @@ def test_deploy_stages_only_modules_the_entry_imports(
 def test_analyze_reports_the_shake_without_staging_or_wrangler(
     tools: Tools, project: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    used = "try:\n    import optional_dep\nexcept ImportError:\n    pass\n"
+    used = (
+        "try:\n    import optional_dep\n    import broken\n"
+        "except ImportError:\n    pass\n"
+    )
     install(
         tools,
         {
             "used/__init__.py": used,
             "used/data.txt": "0123456789",
             "unused/__init__.py": "x = 1\n",
+            "broken.py": "import gone\n",
         },
     )
     entry(project, "import used\nimport json\n")
@@ -83,10 +87,11 @@ def test_analyze_reports_the_shake_without_staging_or_wrangler(
     rows = {line.split()[0]: line.split()[1:] for line in out.splitlines() if line}
     assert rows["used"] == ["2", f"{len(used) + 10}", "0", "0"]
     assert rows["unused"] == ["0", "0", "1", "6"]
-    assert (
-        "Imports no installed module provides:\n  optional_dep (imported by used)\n"
-        in out
-    )
+    missing = out.partition("Imports no installed module provides:\n")[2]
+    assert sorted(missing.split("\n\n")[0].splitlines()) == [
+        "  gone (imported by broken)",
+        "  optional_dep (imported by used)",
+    ]
     assert "json" not in out
     assert listing(project)["unused/__init__.py"] == ("dropped", "not imported")
     assert not (project / ".wynd" / "build").exists()
